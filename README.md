@@ -1,5 +1,7 @@
 # Nordic Wonen — Serverless Event-Driven Webshop (PoC)
 
+**🔗 Live demo:** [webshop-aws-python.kabulter.click](https://webshop-aws-python.kabulter.click)
+
 > **Architectural & QA Automation Proof of Concept.** Dit is een portfolioproject dat een
 > serverless, event-driven webshop-architectuur op AWS demonstreert: schone Python-code,
 > Infrastructure as Code met Terraform, een single-table DynamoDB-datamodel, ontkoppeling via
