@@ -51,7 +51,7 @@ Lambda: webshop-main-app  (Flask via Mangum/ASGI, server-side rendered HTML-frag
 
 | Laag | Keuze |
 |---|---|
-| Frontend | HTMX (CDN) + Tailwind CSS (CDN, gepinde versies met SRI-hashes) |
+| Frontend | HTMX (CDN, met SRI-hash) + Tailwind CSS Play CDN (CDN, gepinde versie-URL; geen SRI mogelijk, zie A03) |
 | Backend | Python, Flask, gerenderd via `asgiref` + Mangum op AWS Lambda |
 | Data | Amazon DynamoDB, single-table design |
 | Events | Amazon EventBridge (custom bus) → fan-out naar 3 Amazon SQS-queues |
@@ -166,7 +166,7 @@ landschap typisch sneller gebeurt dan je vooraf denkt.
 |---|---|---|
 | A01 | Broken Access Control | Cart-id komt uitsluitend uit de signed session-cookie, nooit uit request-body/query; order-id's zijn UUID's (niet te raden); elke Lambda heeft een eigen least-privilege IAM-rol (main app: alleen tabel-RW + `events:PutEvents`; elke consumer: alleen `sqs:ReceiveMessage`/`DeleteMessage` op zijn **eigen** queue) |
 | A02 | Security Misconfiguration | `PROPAGATE_EXCEPTIONS = False` zodat fouten altijd via de eigen error handlers lopen; `Content-Security-Policy` scoped op de exacte CDN-origins (geen `*`); geen enkele IAM policy-statement gebruikt `Resource: "*"` |
-| A03 | Software Supply Chain Failures | Python-dependencies zijn exact gepind in `pyproject.toml` en vastgelegd (inclusief hashes) in `uv.lock`, dat bewust **niet** gitignored is; HTMX- en Tailwind-CDN-scripts hebben een `integrity`-attribuut (SRI) tegen gepinde versies; `terraform/.terraform.lock.hcl` is eveneens **niet** gitignored en pint providerversies |
+| A03 | Software Supply Chain Failures | Python-dependencies zijn exact gepind in `pyproject.toml` en vastgelegd (inclusief hashes) in `uv.lock`, dat bewust **niet** gitignored is; de HTMX-CDN-script-tag heeft een `integrity`-attribuut (SRI); de Tailwind Play CDN-script-tag kan dat **niet** hebben (zie kanttekening hieronder) maar is wel op een exacte versie-URL gepind; `terraform/.terraform.lock.hcl` is eveneens **niet** gitignored en pint providerversies |
 | A04 | Cryptographic Failures | `SECRET_KEY` komt uit een environment variable (nooit hardcoded in code of git); sessioncookie heeft `HttpOnly`, `SameSite=Lax`, `Secure` buiten lokale dev; de Payment-Lambda simuleert alleen — er wordt nooit echte betaalinformatie verwerkt of opgeslagen. **Eerlijke kanttekening:** in deze PoC staat `SECRET_KEY` als plain Lambda-environment-variabele (zichtbaar in de console/state) — prima voor een lokaal-geverifieerde demo, maar een echte productie-deploy zou hem uit AWS Secrets Manager of SSM Parameter Store (`SecureString`) laden bij cold start in plaats van via Terraform als platte env var mee te geven |
 | A05 | Injection | Alle DynamoDB-toegang loopt via boto3 `Key`/`Attr`-expression builders (nooit string-concatenatie); Jinja2-autoescape staat overal aan, nergens `\|safe` op gebruikersinvoer |
 | A06 | Insecure Design | Checkout hervalideert server-side: kleur moet in de actuele `colors[]` van het product zitten, hoeveelheid wordt geclamped (1–10), en het totaalbedrag wordt herberekend uit de actuele `price_cents` — nooit vertrouwd vanuit de client of zelfs vanuit de opgeslagen cart-regel |
@@ -189,7 +189,9 @@ uv run playwright install chromium
 
 export SECRET_KEY="dev-secret-key"
 export FLASK_APP="app.main:app"
-export FLASK_ENV="development"
+export FLASK_DEBUG=1   # niet FLASK_ENV -- Flask 3.x leest die niet meer; FLASK_DEBUG=1
+                        # zet zowel de auto-reloader (template-/code-wijzigingen worden
+                        # opgepikt zonder herstart) als de niet-Secure sessiecookie aan
 export TABLE_NAME="WebshopTableLocal"
 export EVENT_BUS_NAME="webshop-event-bus-local"
 
@@ -200,9 +202,15 @@ export DYNAMODB_ENDPOINT_URL="http://localhost:5001"
 export EVENTS_ENDPOINT_URL="http://localhost:5001"
 export SQS_ENDPOINT_URL="http://localhost:5001"
 
-uv run python scripts/seed_local_table.py   # maakt de tabel + GSI aan (idempotent) en seedt 22 producten
+uv run python -m scripts.seed_local_table   # maakt de tabel + GSI aan (idempotent) en seedt 22 producten
 uv run flask run
 ```
+
+> **Let op:** gebruik `python -m scripts.seed_local_table`, niet
+> `python scripts/seed_local_table.py`. Bij een direct scriptpad zet Python de map van het
+> script zelf (`scripts/`) vooraan in `sys.path` in plaats van de projectroot, waardoor
+> `import app` faalt met `ModuleNotFoundError`. Met `-m` (uitgevoerd vanuit de projectroot)
+> staat de projectroot wél op `sys.path`. Dit is standaard Python-gedrag, geen uv-quirk.
 
 De EventBridge-bus en de drie SQS-queues staan alleen in `tests/conftest.py` (nodig om de
 `OrderPlaced`-fan-out te kunnen testen); voor puur lokaal handmatig browsen door de

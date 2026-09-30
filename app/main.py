@@ -24,7 +24,7 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_ENV") != "development"
+    app.config["SESSION_COOKIE_SECURE"] = os.environ.get("FLASK_DEBUG") != "1"
     app.config["PROPAGATE_EXCEPTIONS"] = False
 
     app.register_blueprint(catalog.bp)

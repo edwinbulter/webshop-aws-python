@@ -68,11 +68,20 @@ applicatiecode zelf is aangepast.
   (nieuwere, of gemanipuleerde) versie, zelfs niet als die toevallig hetzelfde versienummer
   zou dragen. `uv.lock` staat bewust **niet** in `.gitignore`, net als
   `terraform/.terraform.lock.hcl`.
-- De HTMX- en Tailwind-`<script>`-tags in `app/templates/base.html` hebben een
-  `integrity="sha384-…"`-attribuut (Subresource Integrity). De browser berekent zelf de
-  hash van het gedownloade script en vergelijkt die met de verwachte waarde; komt die niet
-  overeen (bijv. omdat de CDN gehackt is en een ander bestand serveert), dan **weigert de
-  browser het script uit te voeren** — dit is dus een technische garantie, geen belofte.
+- De HTMX-`<script>`-tag in `app/templates/base.html` heeft een `integrity="sha384-…"`-
+  attribuut (Subresource Integrity). De browser berekent zelf de hash van het gedownloade
+  script en vergelijkt die met de verwachte waarde; komt die niet overeen (bijv. omdat de
+  CDN gehackt is en een ander bestand serveert), dan **weigert de browser het script uit te
+  voeren** — dit is dus een technische garantie, geen belofte.
+- **Eerlijke kanttekening:** de Tailwind Play CDN-script-tag heeft *bewust* géén
+  `integrity`/`crossorigin`-attribuut. SRI vereist dat de browser het script in CORS-modus
+  ophaalt (`crossorigin="anonymous"`), en `cdn.tailwindcss.com` stuurt geen
+  `Access-Control-Allow-Origin`-header terug. Met SRI erop blokkeert de browser het script
+  dus volledig (getest en bevestigd: de pagina laadt dan zonder enige Tailwind-styling). De
+  mitigatie is hier zwakker maar niet nul: de `Content-Security-Policy`'s `script-src` staat
+  alleen dat ene, met naam genoemde origin toe (geen wildcard), en de URL pint een exacte
+  versie (`/3.4.16`) in plaats van een altijd-nieuwste `cdn.tailwindcss.com`-endpoint zonder
+  versienummer.
 - `terraform/.terraform.lock.hcl` is bewust **niet** opgenomen in `.gitignore` en pint de
   exacte versies van de Terraform-providers (`hashicorp/aws`, `hashicorp/archive`,
   `hashicorp/null`), zodat `terraform init` altijd dezelfde, geverifieerde providercode

@@ -8,10 +8,11 @@
     src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"
     integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
     crossorigin="anonymous"></script>
-  <script
-    src="https://cdn.tailwindcss.com/3.4.16"
-    integrity="sha384-mS5Uq7sE90lgbBDN8xgf34ibEgbZo4gB3tfLY40ZRle+M188BQw8onzNHg6GUZaA"
-    crossorigin="anonymous"></script>
+  <!-- No integrity/crossorigin here: cdn.tailwindcss.com sends no
+       Access-Control-Allow-Origin header, so a crossorigin="anonymous" fetch
+       (required for SRI) is blocked by CORS before the script ever runs. The
+       exact version is pinned in the URL itself as the mitigation instead. -->
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 </head>
 <body class="bg-[#f5f5f3] text-gray-900 min-h-screen flex flex-col">
   <header class="bg-[#0058a3] text-white shadow">

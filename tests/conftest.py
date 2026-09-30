@@ -10,7 +10,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("TABLE_NAME", "WebshopTableTest")
 os.environ.setdefault("GSI1_NAME", "GSI1")
 os.environ.setdefault("EVENT_BUS_NAME", "webshop-event-bus-test")
-os.environ.setdefault("FLASK_ENV", "development")
+os.environ.setdefault("FLASK_DEBUG", "1")
 
 import boto3  # noqa: E402
 import pytest  # noqa: E402
