@@ -1,0 +1,13 @@
+<div id="cart-contents">
+  <span id="cart-count" hx-swap-oob="true"
+        class="ml-1 inline-flex items-center justify-center bg-[#ffcc00] text-[#0058a3] font-bold rounded-full w-6 h-6 text-sm align-middle">0</span>
+  <div class="bg-white rounded-lg shadow p-8 text-center" data-testid="order-confirmation">
+    <p class="text-4xl mb-4">&#9989;</p>
+    <h2 class="text-2xl font-extrabold mb-2">Bestelling geplaatst!</h2>
+    <p class="text-gray-600 mb-4">
+      Bestelnummer:
+      <span class="font-mono font-semibold" data-testid="order-id">{{ order.id }}</span>
+    </p>
+    <p class="text-xl font-extrabold text-[#0058a3]" data-testid="order-total">{{ order.total_display }}</p>
+  </div>
+</div>

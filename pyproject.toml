@@ -1,0 +1,14 @@
+[tool.pytest.ini_options]
+# integration before e2e: Playwright's sync API leaves a running asyncio event
+# loop on the main thread, which breaks Mangum's own run_until_complete call in
+# the Lambda-packaging tests if e2e runs first in the same process.
+testpaths = ["tests/integration", "tests/e2e"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+
+[tool.black]
+line-length = 110
+target-version = ["py313"]

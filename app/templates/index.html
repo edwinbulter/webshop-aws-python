@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Bureaulampen{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-extrabold mb-2">Bureaulampen</h1>
+<p class="text-gray-600 mb-6">IKEA-style desk lamp catalogus &mdash; portfolio proof-of-concept.</p>
+
+<form id="filters" hx-get="/products" hx-target="#product-grid" hx-swap="outerHTML" hx-trigger="change"
+      class="flex flex-wrap gap-4 mb-6 bg-white rounded-lg shadow p-4">
+  <div>
+    <label for="sort" class="block text-sm font-medium mb-1">Sorteren</label>
+    <select name="sort" id="sort" class="border rounded px-2 py-1">
+      <option value="price_asc" {% if sort == "price_asc" %}selected{% endif %}>Prijs: laag naar hoog</option>
+      <option value="price_desc" {% if sort == "price_desc" %}selected{% endif %}>Prijs: hoog naar laag</option>
+    </select>
+  </div>
+  <div>
+    <label for="color" class="block text-sm font-medium mb-1">Kleur</label>
+    <select name="color" id="color" class="border rounded px-2 py-1">
+      <option value="">Alle kleuren</option>
+      {% for c in all_colors %}
+      <option value="{{ c }}" {% if c == color %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+{% include "_products_grid.html" %}
+{% endblock %}

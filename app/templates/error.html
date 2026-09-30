@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Fout{% endblock %}
+{% block content %}
+<div class="bg-white rounded-lg shadow p-8 text-center" data-testid="error-page">
+  <h1 class="text-2xl font-extrabold mb-2">Er is iets misgegaan</h1>
+  <p class="text-gray-600">{{ message }}</p>
+</div>
+{% endblock %}

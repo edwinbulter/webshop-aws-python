@@ -1,0 +1,200 @@
+[
+  {
+    "id": "vindlys-bureaulamp-zwart",
+    "title": "VINDLYS Bureaulamp, zwart",
+    "price_cents": 1999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/forsa-bureaulamp-zwart__0609293_pe684430_s5.jpg?f=xxs",
+    "colors": ["Zwart", "Wit", "Vernikkeld"],
+    "rating_value": 4.7,
+    "rating_count": 133
+  },
+  {
+    "id": "bjorkvik-bureaulamp-donkergrijs",
+    "title": "BJORKVIK Bureaulamp, donkergrijs",
+    "price_cents": 999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/tertial-bureaulamp-donkergrijs__0609306_pe684440_s5.jpg?f=xxs",
+    "colors": ["Donkergrijs", "Lichtblauw", "Wit"],
+    "rating_value": 4.6,
+    "rating_count": 136
+  },
+  {
+    "id": "myrstig-bureaulamp-grijsgroen",
+    "title": "MYRSTIG Bureaulamp, grijsgroen",
+    "price_cents": 1999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/rodflik-bureaulamp-grijsgroen__1327045_pe944344_s5.jpg?f=xxs",
+    "colors": ["Grijsgroen", "Lichtbeige"],
+    "rating_value": 4.6,
+    "rating_count": 14
+  },
+  {
+    "id": "frostby-led-klemspot-wit",
+    "title": "FROSTBY Led-klemspot, wit",
+    "price_cents": 1199,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/navlinge-led-klemspot-wit__0710474_pe727575_s5.jpg?f=xxs",
+    "colors": ["Wit", "Paars/donkergroen", "Zwart", "Donkerrood"],
+    "rating_value": 4.5,
+    "rating_count": 200
+  },
+  {
+    "id": "kallmur-bureaulamp-zwart",
+    "title": "KALLMUR Bureaulamp, zwart",
+    "price_cents": 1499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/skurup-bureaulamp-zwart__1019457_pe831378_s5.jpg?f=xxs",
+    "colors": ["Zwart"],
+    "rating_value": 4.7,
+    "rating_count": 13
+  },
+  {
+    "id": "granlund-led-bureaulamp-zwart",
+    "title": "GRANLUND Led-bureaulamp, zwart",
+    "price_cents": 1499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/navlinge-led-bureaulamp-zwart__0709827_pe727109_s5.jpg?f=xxs",
+    "colors": ["Zwart", "Wit", "Groen", "Geel/wit"],
+    "rating_value": 4.4,
+    "rating_count": 116
+  },
+  {
+    "id": "snofall-led-bureaulamp-dimbaar-wit",
+    "title": "SNÖFALL Led-bureaulamp, dimbaar/wit",
+    "price_cents": 1999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/korvsnore-led-bureaulamp-dimbaar-wit__1504087_pe1008086_s5.jpg?f=xxs",
+    "colors": ["Wit", "Oranje"],
+    "rating_value": 5.0,
+    "rating_count": 2
+  },
+  {
+    "id": "eskholm-bureaulamp-beige-essenhout",
+    "title": "ESKHOLM Bureaulamp, beige/essenhout",
+    "price_cents": 2999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/sjomakt-bureaulamp-beige-essen__1441718_pe986475_s5.jpg?f=xxs",
+    "colors": ["Beige/essenhout"],
+    "rating_value": 0.0,
+    "rating_count": 0
+  },
+  {
+    "id": "manesken-bureaulamp-draadloos-opladen-antraciet",
+    "title": "MÅNESKEN Bureaulamp met draadloos opladen, antraciet",
+    "price_cents": 5999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/nymane-bureaulamp-met-draadloos-opladen-antraciet__0991757_pe819571_s5.jpg?f=xxs",
+    "colors": ["Antraciet", "Wit"],
+    "rating_value": 3.1,
+    "rating_count": 34
+  },
+  {
+    "id": "havsvik-led-wand-klemspot-zwart",
+    "title": "HAVSVIK Led-wand-/klemspot, zwart",
+    "price_cents": 1499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/navlinge-led-wand-klemspot-zwart__0709833_pe727112_s5.jpg?f=xxs",
+    "colors": ["Zwart", "Wit"],
+    "rating_value": 4.0,
+    "rating_count": 75
+  },
+  {
+    "id": "tundris-bureaulamp-donkergrijs-wit",
+    "title": "TUNDRIS Bureaulamp, donkergrijs/wit",
+    "price_cents": 399,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/svallet-bureaulamp-donkergrijs-wit__0703502_pe724751_s5.jpg?f=xxs",
+    "colors": ["Donkergrijs/wit"],
+    "rating_value": 4.7,
+    "rating_count": 41
+  },
+  {
+    "id": "blatopp-led-bureaulamp-opbergruimte-dimbaar-turkoois",
+    "title": "BLÅTOPP Led-bureaulamp met opbergruimte, dimbaar/turkoois",
+    "price_cents": 1999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/brunbage-led-bureaulamp-met-opbergruimte-dimbaar-turkoois__1149363_pe883977_s5.jpg?f=xxs",
+    "colors": ["Turkoois"],
+    "rating_value": 4.0,
+    "rating_count": 12
+  },
+  {
+    "id": "skarmljus-led-lamp-scherm-dimbaar-turkoois",
+    "title": "SKÄRMLJUS Led-lamp voor scherm, dimbaar/turkoois",
+    "price_cents": 1799,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/lagergang-led-lamp-voor-scherm-dimbaar-turkoois__1166865_pe891302_s5.jpg?f=xxs",
+    "colors": ["Turkoois"],
+    "rating_value": 4.0,
+    "rating_count": 18
+  },
+  {
+    "id": "rundkvist-bureaulamp-ecru",
+    "title": "RUNDKVIST Bureaulamp, ecru",
+    "price_cents": 3999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/ranarp-bureaulamp-ecru__0610455_pe685514_s5.jpg?f=xxs",
+    "colors": ["Ecru"],
+    "rating_value": 4.4,
+    "rating_count": 14
+  },
+  {
+    "id": "lindblom-bureaulamp-beige",
+    "title": "LINDBLOM Bureaulamp, beige",
+    "price_cents": 699,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/flottilj-bureaulamp-beige__1177509_pe895347_s5.jpg?f=xxs",
+    "colors": ["Beige"],
+    "rating_value": 4.3,
+    "rating_count": 6
+  },
+  {
+    "id": "gyllene-led-bureaulamp-wit-messingkleur",
+    "title": "GYLLENE Led-bureaulamp, wit/messingkleur",
+    "price_cents": 2499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/isnalen-led-bureaulamp-wit-messingkleur__1053570_pe857378_s5.jpg?f=xxs",
+    "colors": ["Wit/messingkleur", "Rood/messingkleur"],
+    "rating_value": 4.6,
+    "rating_count": 10
+  },
+  {
+    "id": "vitstral-led-bureaulamp-wit",
+    "title": "VITSTRÅL Led-bureaulamp, wit",
+    "price_cents": 3999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/krux-led-bureaulamp-wit__0540949_pe653354_s5.jpg?f=xxs",
+    "colors": ["Wit"],
+    "rating_value": 4.6,
+    "rating_count": 12
+  },
+  {
+    "id": "duvholm-bureaulamp-zwart-wit",
+    "title": "DUVHOLM Bureaulamp, zwart/wit",
+    "price_cents": 1499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/sambord-bureaulamp-zwart-wit__1375676_pe960327_s5.jpg?f=xxs",
+    "colors": ["Zwart/wit"],
+    "rating_value": 0.0,
+    "rating_count": 0
+  },
+  {
+    "id": "stormyr-bureau-wandlamp-zwart",
+    "title": "STORMYR Bureau-/wandlamp, zwart",
+    "price_cents": 3999,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/skurup-bureau-wandlamp-zwart__0629510_pe694334_s5.jpg?f=xxs",
+    "colors": ["Zwart"],
+    "rating_value": 3.3,
+    "rating_count": 13
+  },
+  {
+    "id": "ringspel-ringlicht-telefoonhouder",
+    "title": "RINGSPEL Ringlicht met telefoonhouder",
+    "price_cents": 3499,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/lanespelare-ringlicht-met-telefoonhouder__0971505_pe811368_s5.jpg?f=xxs",
+    "colors": ["Zwart"],
+    "rating_value": 4.4,
+    "rating_count": 21
+  },
+  {
+    "id": "daggdroppe-led-ringlamp-dimbaar-turkoois",
+    "title": "DAGGDROPPE Led-ringlamp, dimbaar/turkoois",
+    "price_cents": 899,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/stankregn-led-ringlamp-dimbaar-turkoois__1119273_pe873447_s5.jpg?f=xxs",
+    "colors": ["Turkoois"],
+    "rating_value": 3.5,
+    "rating_count": 10
+  },
+  {
+    "id": "fjarrljus-led-lamp-usb-zwart",
+    "title": "FJÄRRLJUS Led-lamp USB, zwart, 38 cm",
+    "price_cents": 399,
+    "image_url": "https://www.ikea.com/nl/nl/images/products/jansjo-led-lamp-usb-zwart__0607576_pe683065_s5.jpg?f=xxs",
+    "colors": ["Zwart"],
+    "rating_value": 4.3,
+    "rating_count": 43
+  }
+]

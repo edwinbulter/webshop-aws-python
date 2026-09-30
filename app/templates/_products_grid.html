@@ -1,0 +1,30 @@
+<div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+  {% for product in products %}
+  <article class="bg-white rounded-lg shadow p-4 flex flex-col" data-testid="product-card" data-product-id="{{ product.id }}">
+    <img src="{{ product.image_url }}" alt="{{ product.title }}" class="w-full h-48 object-contain mb-4" loading="lazy">
+    <h2 class="font-bold text-lg mb-1">{{ product.title }}</h2>
+    <p class="text-sm text-gray-500 mb-1">
+      &#9733; {{ "%.1f"|format(product.rating_value) }} ({{ product.rating_count }} beoordelingen)
+    </p>
+    <p class="text-xl font-extrabold text-[#0058a3] mb-3">{{ product.price_display }}</p>
+
+    <form hx-post="/cart/add" hx-target="#status-{{ product.id }}" hx-swap="innerHTML" class="mt-auto space-y-2">
+      <input type="hidden" name="product_id" value="{{ product.id }}">
+      <div class="flex gap-2">
+        <select name="color" class="border rounded px-2 py-1 flex-1 text-sm" aria-label="Kleur">
+          {% for color in product.colors %}
+          <option value="{{ color }}">{{ color }}</option>
+          {% endfor %}
+        </select>
+        <input type="number" name="quantity" value="1" min="1" max="10" class="border rounded px-2 py-1 w-16 text-sm" aria-label="Aantal">
+      </div>
+      <button type="submit" class="w-full bg-[#0058a3] text-white font-semibold rounded py-2 hover:bg-[#004a87]">
+        In winkelwagen
+      </button>
+    </form>
+    <div id="status-{{ product.id }}" class="text-sm text-green-700 mt-2" data-testid="add-to-cart-status"></div>
+  </article>
+  {% else %}
+  <p class="col-span-full text-center text-gray-500">Geen lampen gevonden voor deze filter.</p>
+  {% endfor %}
+</div>

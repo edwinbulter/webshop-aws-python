@@ -1,0 +1,35 @@
+<div id="cart-contents">
+  <span id="cart-count" hx-swap-oob="true"
+        class="ml-1 inline-flex items-center justify-center bg-[#ffcc00] text-[#0058a3] font-bold rounded-full w-6 h-6 text-sm align-middle">{{ cart_count|default(0) }}</span>
+  {% if cart_items %}
+  <div class="bg-white rounded-lg shadow divide-y" data-testid="cart-items">
+    {% for item in cart_items %}
+    <div class="flex items-center gap-4 p-4" data-testid="cart-item" data-product-id="{{ item.product_id }}">
+      <img src="{{ item.image_url }}" alt="{{ item.title }}" class="w-16 h-16 object-contain">
+      <div class="flex-1">
+        <p class="font-semibold">{{ item.title }}</p>
+        <p class="text-sm text-gray-500">Kleur: {{ item.color }} &middot; Aantal: {{ item.quantity }}</p>
+      </div>
+      <p class="font-bold">{{ item.line_total_display }}</p>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="flex items-center justify-between mt-4 bg-white rounded-lg shadow p-4">
+    <p class="text-xl font-extrabold" data-testid="cart-total">Totaal: {{ "€ %.2f"|format(cart_total_cents / 100) }}</p>
+    <div class="flex gap-2">
+      <button hx-post="/cart/clear" hx-target="#cart-contents" hx-swap="outerHTML"
+              class="border border-gray-300 rounded px-4 py-2 font-semibold hover:bg-gray-100">
+        Winkelwagen legen
+      </button>
+      <button hx-post="/checkout" hx-target="#cart-contents" hx-swap="outerHTML"
+              data-testid="checkout-button"
+              class="bg-[#0058a3] text-white rounded px-4 py-2 font-semibold hover:bg-[#004a87]">
+        Afrekenen
+      </button>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-center text-gray-500 bg-white rounded-lg shadow p-8" data-testid="cart-empty">Je winkelwagen is leeg.</p>
+  {% endif %}
+</div>

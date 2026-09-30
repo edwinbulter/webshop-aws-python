@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+terraform/**/.terraform/
+terraform/**/terraform.tfstate
+terraform/**/terraform.tfstate.backup
+terraform/**/*.tfplan
+terraform/**/crash.log
+terraform/**/terraform.tfvars
+.terraform-build/
+
+# .terraform.lock.hcl is intentionally NOT ignored -- it pins provider
+# versions and should be committed (OWASP A03: supply chain).
+
+.env
+*.env.local
+
+node_modules/
+.DS_Store
