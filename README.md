@@ -23,14 +23,19 @@ overeen met de echte IKEA-productnamen, om hergebruik van handelsmerken te vermi
 6. [Lokaal draaien](#lokaal-draaien)
 7. [Testen](#testen)
 8. [Infrastructure as Code (Terraform)](#infrastructure-as-code-terraform)
-9. [Verwachte AWS-kosten (± 100 API-calls/dag)](#verwachte-aws-kosten--100-api-callsdag)
-10. [Scope en beperkingen](#scope-en-beperkingen)
+9. [Deployment naar AWS](#deployment-naar-aws)
+10. [GitHub Actions (CI/CD)](#github-actions-cicd)
+11. [Verwachte AWS-kosten (± 100 API-calls/dag)](#verwachte-aws-kosten--100-api-callsdag)
+12. [Scope en beperkingen](#scope-en-beperkingen)
 
 ## Architectuuroverzicht
 
 ```
 Browser (HTMX + Tailwind CDN)
-        │  HTTP
+        │  HTTPS
+        ▼
+webshop-aws-python.kabulter.click  (Route53 alias + ACM-cert, regionaal)
+        │
         ▼
 API Gateway (HTTP API)
         │  AWS_PROXY
@@ -55,9 +60,10 @@ Lambda: webshop-main-app  (Flask via Mangum/ASGI, server-side rendered HTML-frag
 | Backend | Python, Flask, gerenderd via `asgiref` + Mangum op AWS Lambda |
 | Data | Amazon DynamoDB, single-table design |
 | Events | Amazon EventBridge (custom bus) → fan-out naar 3 Amazon SQS-queues |
-| IaC | Terraform (modules per component) |
+| IaC | Terraform (modules per component, incl. custom domain + GitHub OIDC) |
 | Tests | pytest + moto (integratie), Playwright (Python, E2E) |
 | Tooling | [uv](https://docs.astral.sh/uv/) voor Python-versie- én dependency-beheer (`pyproject.toml` + `uv.lock`) |
+| CI/CD | GitHub Actions: tests op elke push/PR, handmatige code-only deploy via OIDC (geen AWS-sleutels in GitHub) |
 
 De Flask-app is bewust **niet** ASGI-native geschreven (Flask is WSGI); `asgiref.wsgi.WsgiToAsgi`
 verpakt de WSGI-app zodat Mangum — dat zelf een ASGI-adapter is — hem op Lambda kan draaien.
@@ -69,7 +75,12 @@ webshop-aws-python/
 ├── pyproject.toml + uv.lock    # dependencies, dev-tools en het gepinde uv-lockbestand
 ├── .python-version             # pint de Python-versie (3.13) die `uv` gebruikt
 ├── docs/owasp-top-10.md        # uitgebreide risico-uitleg per OWASP-categorie
-├── terraform/                 # IaC: root config + modules/{dynamodb,eventbridge,sqs,lambda,api_gateway}
+├── .github/workflows/
+│   ├── tests.yml                # integratie + E2E tests, op elke push/PR
+│   └── deploy.yml                # handmatige, code-only deploy naar AWS (OIDC, geen secrets)
+├── terraform/                 # IaC: root config + modules/{dynamodb,eventbridge,sqs,lambda,
+│                               #      api_gateway,custom_domain,github_oidc}
+│   └── backend.env.example     # template voor terraform/backend.env (gitignored)
 ├── app/                       # Flask-applicatie (main app Lambda)
 │   ├── main.py                 # Flask app + security headers + Mangum handler
 │   ├── aws_clients.py          # boto3-clients, endpoint-url-aware (voor lokale moto-tests)
@@ -80,7 +91,10 @@ webshop-aws-python/
 │   ├── templates/               # Jinja2 + HTMX-fragmenten
 │   └── seed/products.json      # 22 lampen (uit ikea.com/nl/nl/cat/bureaulampen-20502)
 ├── consumers/                  # 3 losse consumer-Lambda's (payment/inventory/notification)
-├── scripts/seed_local_table.py # laadt products.json in de (lokale) tabel
+├── scripts/
+│   ├── bootstrap_local_infra.py  # lokaal (moto) alleen: tabel + event bus/queues/rules aanmaken
+│   ├── seed_products.py          # laadt products.json in een al-bestaande tabel (lokaal óf echt AWS)
+│   └── bootstrap_terraform_backend.sh  # eenmalige, idempotente backend-setup (S3 + DynamoDB)
 └── tests/
     ├── conftest.py              # ThreadedMotoServer + tabel/bus/queues bootstrap
     ├── integration/             # pytest + moto
@@ -202,20 +216,30 @@ export DYNAMODB_ENDPOINT_URL="http://localhost:5001"
 export EVENTS_ENDPOINT_URL="http://localhost:5001"
 export SQS_ENDPOINT_URL="http://localhost:5001"
 
-uv run python -m scripts.seed_local_table   # maakt de tabel + GSI aan (idempotent) en seedt 22 producten
+uv run python -m scripts.bootstrap_local_infra   # maakt de tabel + GSI + event bus/queues/rules aan (idempotent)
+uv run python -m scripts.seed_products           # seedt de 22 producten in die tabel
 uv run flask run
 ```
 
-> **Let op:** gebruik `python -m scripts.seed_local_table`, niet
-> `python scripts/seed_local_table.py`. Bij een direct scriptpad zet Python de map van het
-> script zelf (`scripts/`) vooraan in `sys.path` in plaats van de projectroot, waardoor
-> `import app` faalt met `ModuleNotFoundError`. Met `-m` (uitgevoerd vanuit de projectroot)
-> staat de projectroot wél op `sys.path`. Dit is standaard Python-gedrag, geen uv-quirk.
+> **Let op:** gebruik `python -m scripts.<naam>`, niet `python scripts/<naam>.py`. Bij een
+> direct scriptpad zet Python de map van het script zelf (`scripts/`) vooraan in `sys.path`
+> in plaats van de projectroot, waardoor `import app` faalt met `ModuleNotFoundError`. Met
+> `-m` (uitgevoerd vanuit de projectroot) staat de projectroot wél op `sys.path`. Dit is
+> standaard Python-gedrag, geen uv-quirk.
 
-`scripts.seed_local_table` bootstrapt naast de tabel ook de EventBridge-bus, de drie
-SQS-queues en de fan-out rules (idempotent, zelfde patroon als `terraform/main.tf`) —
-Afrekenen publiceert dus ook lokaal een echt `OrderPlaced`-event dat je met de AWS CLI tegen
-de moto-endpoint kunt bekijken (`aws --endpoint-url http://localhost:5001 sqs receive-message
+Twee losse scripts met een bewust smalle naam, om niet dezelfde verwarring te herhalen als
+een eerdere versie van dit project had (één `seed_local_table.py`-script dat zowel lokaal
+als tegen echte AWS werd gebruikt): `bootstrap_local_infra.py` mag **uitsluitend** tegen de
+lokale moto-mock draaien — hij maakt tabel/bus/queues/rules aan zonder de instellingen
+(bijv. DLQ-redrive-policies) die Terraform er in het echt wél aan geeft, en zou daar dus op
+botsen. `seed_products.py` raakt geen infrastructuur aan en is generiek: die kun je zowel
+lokaal als tegen een al door Terraform geprovisionede live omgeving draaien (zie
+[Deployment naar AWS](#deployment-naar-aws)).
+
+`bootstrap_local_infra` maakt naast de tabel ook de EventBridge-bus, de drie SQS-queues en
+de fan-out rules aan (idempotent, zelfde patroon als `terraform/main.tf`) — Afrekenen
+publiceert dus ook lokaal een echt `OrderPlaced`-event dat je met de AWS CLI tegen de
+moto-endpoint kunt bekijken (`aws --endpoint-url http://localhost:5001 sqs receive-message
 --queue-url <url>`). Mocht je die bootstrap-stap overslaan of de moto-server herstarten
 zonder opnieuw te seeden, dan blijft checkout gewoon werken: `publish_order_placed` vangt een
 ontbrekende bus af, logt de fout (zie A10) en laat de bestelling gewoon slagen.
@@ -244,8 +268,20 @@ orderbevestiging.
 
 ## Infrastructure as Code (Terraform)
 
-Scope van dit project is **lokaal geverifieerd**: er wordt geen echte AWS-omgeving
-gedeployed.
+De IaC bestaat uit een root-config plus modules per component:
+
+| Module | Verantwoordelijkheid |
+|---|---|
+| `dynamodb` | De single-table + GSI1 |
+| `eventbridge` | Custom bus + de 3 fan-out rules |
+| `sqs` | De 3 queues + gedeelde DLQ |
+| `lambda` | Herbruikbaar (4×): bouwt zijn eigen deploy-package, rol, log group |
+| `api_gateway` | HTTP API + integratie + route + `$default`-stage |
+| `custom_domain` | ACM-cert (DNS-validatie) + Route53-alias + API-mapping naar `webshop-aws-python.kabulter.click` |
+| `github_oidc` | OIDC-provider + least-privilege deploy-rol voor GitHub Actions |
+
+`terraform fmt`/`validate` blijven credential-vrij (geen `local-exec`, geen echte
+data-source-lookups):
 
 ```bash
 cd terraform
@@ -254,27 +290,160 @@ terraform fmt -check -recursive
 terraform validate
 ```
 
-Beide commando's werken zonder AWS-credentials of -kosten. `terraform plan`/`apply` zijn
-bewust **niet** vereist voor dit project en hebben wél echte AWS-credentials nodig; wie dat
-alsnog wil proberen moet een `flask_secret_key`-variabele meegeven (zie
-`terraform/variables.tf`).
+`terraform plan`/`apply` provisionen nu wél een echte, live demo — zie
+[Deployment naar AWS](#deployment-naar-aws) hieronder voor de volledige procedure.
 
 Elke Lambda-module bouwt zijn eigen deploy-package via een `null_resource` (local-exec naar
 `modules/lambda/scripts/build.sh`) die de benodigde broncode kopieert en, alleen voor de
 main-app, de runtime-dependencies meebundelt door `uv export` (op basis van `uv.lock`) te
-piped'en naar `uv pip install --target` — de drie consumer-Lambda's hebben alleen `boto3`
-nodig, dat al in de Lambda-runtime zit. `uv` moet dus geïnstalleerd zijn op de machine die
-`terraform apply` uitvoert (niet nodig voor `validate`/`fmt`, die draaien geen
-`local-exec`-provisioners).
+piped'en naar `uv pip install --target --python-platform x86_64-manylinux2014` (matcht
+Lambda's eigen runtime-platform, niet het platform waarop je toevallig `apply` draait) — de
+drie consumer-Lambda's hebben alleen `boto3` nodig, dat al in de Lambda-runtime zit. `uv`
+moet dus geïnstalleerd zijn op elke machine (lokaal én CI) die `terraform apply` uitvoert.
+
+## Deployment naar AWS
+
+**Eenmalige voorbereiding** (met je eigen, persoonlijke AWS-credentials, bijv. via
+`aws configure`):
+
+1. **Controleer de gedeelde Route53-zone** — puur ter geruststelling, dit voert geen
+   wijziging uit: bevestig dat er nog geen record bestaat op de naam die we zo aanmaken,
+   in plaats van dat er alleen over te *redeneren*.
+   ```bash
+   ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name kabulter.click. \
+     --query "HostedZones[0].Id" --output text)
+   aws route53 list-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+     --query "ResourceRecordSets[?contains(Name, 'webshop-aws-python')]"
+   ```
+   Dit moet een lege lijst teruggeven. `kabulter.click` zelf wordt door deze Terraform
+   **nooit** aangemaakt, gewijzigd of verwijderd — alleen als `data`-bron opgezocht; alle
+   `resource`-blocks voegen uitsluitend records toe voor `webshop-aws-python.kabulter.click`
+   en de bijbehorende ACM-validatie-CNAME(s).
+
+2. **Terraform-backend bootstrappen** via `scripts/bootstrap_terraform_backend.sh`
+   (idempotent — veilig om opnieuw te draaien):
+   ```bash
+   cp terraform/backend.env.example terraform/backend.env
+   # vul terraform/backend.env in (gitignored) -- de meegeleverde defaults verwijzen al
+   # naar de bestaande, gedeelde bucket edwinbulter-terraform-state en tabel
+   # terraform-locks; alleen TF_STATE_KEY hoeft uniek te zijn per app
+   ./scripts/bootstrap_terraform_backend.sh
+   ```
+   Dit script maakt de S3-bucket/DynamoDB-tabel **alleen aan als ze nog niet bestaan** —
+   `edwinbulter-terraform-state` bestaat al (state van andere projecten erin) en wordt dus
+   ongewijzigd hergebruikt; `terraform-locks` is één gedeelde lock-tabel voor alle apps
+   (Terraform leidt de lock-key zelf af uit bucket+key, dus er is geen aparte
+   "lock toevoegen"-stap per app nodig). Als het script de bucket wél zelf aanmaakt, zet het
+   ook meteen versioning, SSE-encryptie en block-public-access aan — niet optioneel: het
+   Flask-secret komt zo dadelijk via een `data`-bron in de state terecht, dus de state zelf
+   moet net zo goed beveiligd zijn als een secret.
+
+3. **Flask-secret in SSM zetten** (eenmalig; Terraform *leest* deze alleen, en beheert 'm
+   nooit, zodat een lokale `apply` en een CI-`apply` altijd exact dezelfde waarde gebruiken
+   in plaats van twee losse kopieën die uit elkaar kunnen lopen). Gebruik dezelfde regio als
+   in `terraform/backend.env` — een mismatch hier is precies waarom Terraform straks de
+   parameter niet kan vinden:
+   ```bash
+   source terraform/backend.env
+   aws ssm put-parameter --name /webshop-aws-python/flask-secret-key \
+     --type SecureString --value "$(openssl rand -hex 32)" --region "$AWS_REGION"
+   ```
+
+**Eerste, echte `apply`:**
+
+Gebruik de `terraform init`- en `terraform apply`-aanroepen die het bootstrap-script
+hierboven aan het eind uitprint (die bevatten exact de waarden uit `terraform/backend.env`,
+inclusief `export TF_VAR_aws_region=...`).
+
+`aws_region` heeft in `terraform/variables.tf` **bewust geen default** — de enige plek waar
+de regio wordt gedefinieerd is `terraform/backend.env`; overal elders (dit README, de
+GitHub-Actions-workflows, de bootstrap-script-output) wordt 'm van daaruit doorgegeven, nooit
+opnieuw hardcoded. Zonder `TF_VAR_aws_region` (of `-var="aws_region=..."`) geëxporteerd zal
+`terraform apply` er expliciet om vragen in plaats van stilzwijgend de verkeerde regio te
+gebruiken.
+
+(`tf_state_bucket_name`/`tf_state_key`/`tf_state_lock_table_name` hebben defaults die al
+overeenkomen met `terraform/backend.env.example` — pas ze alleen aan met `-var` als je
+`backend.env` van de defaults hebt laten afwijken.)
+
+Dit maakt in één keer alles aan: de tabel, bus, queues, 4 Lambda's, de API, het ACM-cert +
+Route53-records voor `webshop-aws-python.kabulter.click`, én de GitHub OIDC-rol voor CI. De
+`aws_acm_certificate_validation`-stap **wacht een paar minuten** op DNS-propagatie in de
+gedeelde zone — dat is normaal, geen hang. Na afloop toont `terraform output live_url` de
+demo-URL en `terraform output github_deploy_role_arn` de rol-ARN voor de volgende sectie.
+
+**Let op:** `terraform apply` maakt de tabel wel aan, maar seedt 'm niet — Terraform beheert
+alleen infrastructuur, geen data. Zonder deze stap toont de live demo een lege catalogus.
+Seed de 22 producten met hetzelfde `scripts/seed_products.py` als lokaal (zie
+[Lokaal draaien](#lokaal-draaien)), maar nu tegen de echte tabel: laat
+`DYNAMODB_ENDPOINT_URL`/`EVENTS_ENDPOINT_URL`/`SQS_ENDPOINT_URL` ongezet (dan gaat boto3 naar
+echt AWS) en zet de regio expliciet:
+
+```bash
+export AWS_REGION="$(grep -oP '(?<=^AWS_REGION=).*' terraform/backend.env)"
+uv run python -m scripts.seed_products
+```
+
+Veilig om opnieuw te draaien: producten worden overschreven op hun eigen id, nooit
+gedupliceerd. Gebruik hier bewust **niet** `scripts/bootstrap_local_infra.py` — dat script is
+alleen voor de lokale moto-mock en zou tegen de al-door-Terraform-aangemaakte queues
+(die een DLQ-redrive-policy hebben die dit script niet meegeeft) een fout geven.
+
+**Destroy-veiligheid:** `terraform destroy` kan uitsluitend de 2–3 records verwijderen die
+déze state heeft aangemaakt (de ACM-validatie-CNAME(s) en de alias A-record) — de zone zelf
+is nooit meer dan een `data`-bron zonder Terraform-lifecycle, en geen enkel record van een
+ander project staat ergens in deze state.
+
+**Belangrijk voor toekomstige lokale `apply`'s:** doe altijd eerst `git pull`. Een
+ongetargete lokale `apply` vanaf een verouderde checkout zou de Lambda-code die de
+`deploy.yml`-workflow als laatste heeft uitgerold, stilletjes terugdraaien.
+
+## GitHub Actions (CI/CD)
+
+**`.github/workflows/tests.yml`** — draait op elke push naar `main`, elke pull request, en
+handmatig. Geen AWS nodig: dezelfde moto-gemockte integratietests en de Playwright-E2E-suite
+tegen een echte lokale `flask run`, exact zoals hierboven bij [Testen](#testen).
+
+**`.github/workflows/deploy.yml`** — **uitsluitend handmatig** (`workflow_dispatch`), en
+rolt alléén de 4 Lambda-functies opnieuw uit (`terraform apply -target=...` op precies die
+4 resources) — nooit de tabel, bus, queues, DNS of IAM. Er is geen AWS-sleutel in GitHub
+nodig: authenticatie loopt via **GitHub OIDC** naar de `github_oidc`-Terraform-module, die
+een rol aanmaakt met precies genoeg rechten om Lambda-code te updaten (en verder niets — een
+poging om iets anders te wijzigen zou AWS met `AccessDenied` afwijzen, ongeacht wat de
+workflow of zijn `-target`-lijst ooit zouden proberen). De `-target`-vlaggen zelf zijn
+vooral voor overzicht/blast-radius in de plan-output; de IAM-policy op de rol is de
+daadwerkelijke grens.
+
+**Eenmalige GitHub-configuratie** (na de eerste `terraform apply` hierboven):
+
+1. **Environment aanmaken**: repo → Settings → Environments → New environment → naam
+   `production`. Voeg jezelf toe als *required reviewer* — dat maakt van "alleen handmatig
+   te starten" ook "alleen handmatig te starten én goed te keuren", voor een productie-Lambda
+   een zinvolle extra stap.
+2. **Repo Variables** (Settings → Secrets and variables → Actions → Variables — **geen
+   Secrets nodig**, dit zijn allemaal niet-gevoelige waarden):
+
+   | Variable | Waarde |
+   |---|---|
+   | `AWS_DEPLOY_ROLE_ARN` | output `github_deploy_role_arn` van de eerste `apply` |
+   | `AWS_REGION` | zelfde waarde als `AWS_REGION` in `terraform/backend.env` |
+   | `TF_STATE_BUCKET` | zelfde waarde als `TF_STATE_BUCKET` in `terraform/backend.env` |
+   | `TF_STATE_KEY` | zelfde waarde als `TF_STATE_KEY` in `terraform/backend.env` |
+   | `TF_STATE_LOCK_TABLE` | zelfde waarde als `TF_STATE_LOCK_TABLE` in `terraform/backend.env` |
+
+   Deze vier komen dus letterlijk over uit je eigen (gitignored) `terraform/backend.env` —
+   dat bestand blijft de enige plek waar de regio en backend-namen gedefinieerd staan; deze
+   repo Variables zijn slechts de manier om diezelfde waarden ook aan CI door te geven.
+
+Daarna: code-wijziging maken, mergen naar `main`, en de `deploy.yml`-workflow handmatig
+starten vanuit het Actions-tabblad ("Run workflow") om 'm live te zetten.
 
 ## Verwachte AWS-kosten (± 100 API-calls/dag)
 
-Als deze architectuur wél echt gedeployed zou worden (zie de scope-beperking hierboven —
-dit project doet dat bewust niet), dan is dit een realistische kosteninschatting bij
-**±100 API-calls per dag (~3.000/maand)**. Cijfers zijn opgezocht op de officiële
-AWS-pricingpagina's (regio us-east-1, peildatum 2026-09-30) — de Terraform-default in dit
-project is `eu-west-1`; EU-regio's liggen doorgaans een fractie hoger, wat op dit volume
-niets uitmaakt.
+Realistische kosteninschatting voor de live demo bij **±100 API-calls per dag
+(~3.000/maand)**. Cijfers zijn opgezocht op de officiële AWS-pricingpagina's (regio
+us-east-1, peildatum 2026-09-30) — de daadwerkelijke regio staat in `terraform/backend.env`;
+EU-regio's liggen doorgaans een fractie hoger, wat op dit volume niets uitmaakt.
 
 **Aannames:** van de 3.000 requests/maand is ~5% (150) een checkout die de
 `OrderPlaced`-fan-out triggert (1 EventBridge-event → 3 SQS-berichten → 3
@@ -290,6 +459,8 @@ winkelwagen, checkout samen) → ~9.000 DynamoDB-requests/maand.
 | SQS (3 queues + DLQ) | ~1.350 requests (send + receive + delete) | $0,40/1M requests | **Always Free**: 1.000.000/maand | $0,00 |
 | CloudWatch Logs | enkele MB | $0,50/GB ingest + $0,03/GB/maand opslag | **Always Free**: 5 GB/maand | $0,00 |
 | Data transfer out | enkele tientallen MB | — | **Always Free**: 100 GB/maand | $0,00 |
+| Route53 | DNS-queries op de 2–3 records die dit project toevoegt aan de bestaande zone | $0,40/1M queries | geen (maar geen nieuwe hosted-zone-huur: de zone bestond al) | $0,00 |
+| ACM-certificaat | 1 cert, DNS-gevalideerd | gratis | — | $0,00 |
 | **Totaal** | | | | **ruim onder $0,05/maand** |
 
 Op dit volume blijft praktisch alles binnen AWS's "Always Free"-laag (Lambda, DynamoDB-opslag,
@@ -300,10 +471,11 @@ van een serverless architectuur: de kosten schalen met daadwerkelijk gebruik in 
 met vooraf gereserveerde capaciteit — zelfs bij 10× of 100× dit volume (1.000–10.000
 calls/dag) blijft de rekening in de centen-tot-lage-dollars per maand.
 
-**Niet meegerekend** (niet in deze Terraform geprovisioned): een custom domain/ACM-certificaat/
-Route 53-hosted zone, en NAT Gateway/VPC (deze Lambda's draaien buiten een VPC, dus geen
-NAT-kosten). Nieuwe AWS-accounts krijgen bovendien tot $200 aan credits voor de eerste 6
-maanden, wat dit soort volumes sowieso ruimschoots dekt.
+**Niet meegerekend** (niet in deze Terraform geprovisioned): NAT Gateway/VPC (deze Lambda's
+draaien buiten een VPC, dus geen NAT-kosten) en de S3-bucket + DynamoDB-tabel voor de
+Terraform-backend zelf (state-opslag; verwaarloosbaar op dit volume, typisch < $0,01/maand).
+Nieuwe AWS-accounts krijgen bovendien tot $200 aan credits voor de eerste 6 maanden, wat dit
+soort volumes sowieso ruimschoots dekt.
 
 **Kanttekening bij EventBridge:** AWS introduceerde in september 2026 naast het bestaande
 per-event-model ("classic") ook een nieuw per-GB-model voor custom event buses ("enhanced").
@@ -321,6 +493,7 @@ model van toepassing is.
   consumer-Lambda's zijn bewuste PoC-stubs die loggen en een statusveld op de order
   bijwerken.
 - Geen gebruikersaccounts/login (gast-winkelwagen via signed cookie).
-- Geen `terraform apply` uitgevoerd of geverifieerd tegen een echte AWS-omgeving.
+- Eén omgeving (geen staging/prod-scheiding) — passend bij een single-demo portfolioproject,
+  niet bij een meerdere-omgevingen-opzet.
 - Productfoto's zijn hotlinked vanaf `ikea.com`; als IKEA die URL's wijzigt, breken de
   afbeeldingen in deze demo (bewuste trade-off, zie de disclaimer bovenaan).

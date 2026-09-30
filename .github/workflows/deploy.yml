@@ -1,0 +1,78 @@
+name: Deploy code to AWS
+
+# Manual only, on purpose: this pipeline redeploys Lambda code to a live
+# AWS environment. Full infrastructure changes are applied by a human,
+# locally, per README.md's "Deployment naar AWS" section.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Gates this job on the GitHub Environment's required-reviewer rule (set
+    # up once in the repo's Settings -> Environments -> production), and
+    # scopes the OIDC trust policy to runs under this environment specifically
+    # (see terraform/modules/github_oidc). Manual trigger + manual approval.
+    environment: production
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+      TF_VAR_tf_state_bucket_name: ${{ vars.TF_STATE_BUCKET }}
+      TF_VAR_tf_state_key: ${{ vars.TF_STATE_KEY }}
+      TF_VAR_tf_state_lock_table_name: ${{ vars.TF_STATE_LOCK_TABLE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, no long-lived keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          # Must match the Terraform version used for local applies (see
+          # README) -- a newer version here could write a state snapshot
+          # format that older local Terraform can't read back. Update this
+          # together with any local upgrade, never alone.
+          terraform_version: "1.5.7"
+
+      - name: Terraform init
+        working-directory: terraform
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ vars.TF_STATE_KEY }}" \
+            -backend-config="region=${{ vars.AWS_REGION }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_STATE_LOCK_TABLE }}"
+
+      # Scoped to exactly the 4 Lambda function resources: this keeps
+      # unrelated infra (DynamoDB/EventBridge/SQS/ACM/Route53/IAM) out of the
+      # plan graph, for blast-radius and plan-output hygiene. That said, the
+      # -target list is NOT the security boundary -- the least-privilege IAM
+      # policy on the assumed role (terraform/modules/github_oidc) is: it
+      # grants only lambda:UpdateFunctionCode/GetFunction/TagResource/
+      # UntagResource as write actions, so AWS itself would reject any
+      # broader attempt with AccessDenied regardless of what this workflow
+      # or its -target flags ever try to do.
+      #
+      # The Lambda code diff always shows as "(known after apply)" -- that's
+      # expected (archive_file depends on the build step), not a bug.
+      - name: Terraform apply (Lambda code only)
+        working-directory: terraform
+        run: |
+          terraform apply -auto-approve \
+            -target=module.lambda_main_app.aws_lambda_function.this \
+            -target=module.lambda_payment_service.aws_lambda_function.this \
+            -target=module.lambda_inventory_service.aws_lambda_function.this \
+            -target=module.lambda_notification_service.aws_lambda_function.this

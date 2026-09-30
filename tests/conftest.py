@@ -24,7 +24,8 @@ from app.config import (  # noqa: E402
     TABLE_NAME,
 )
 from app.repositories.single_table import put_products  # noqa: E402
-from scripts.seed_local_table import ensure_table_exists, load_products  # noqa: E402
+from scripts.bootstrap_local_infra import ensure_table_exists  # noqa: E402
+from scripts.seed_products import load_products  # noqa: E402
 
 
 def _free_port() -> int:

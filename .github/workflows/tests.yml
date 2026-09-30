@@ -1,0 +1,32 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install Playwright browsers
+        run: uv run playwright install --with-deps chromium
+
+      # Integration tests before e2e in a single process (see the comment in
+      # pyproject.toml's [tool.pytest.ini_options]): Playwright's sync API
+      # leaves a running asyncio event loop on the main thread, which breaks
+      # Mangum's own run_until_complete call in the Lambda-packaging test if
+      # e2e runs first. Do not split this into a matrix/parallel jobs.
+      - name: Run tests
+        run: uv run pytest -v

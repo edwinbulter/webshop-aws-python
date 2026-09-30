@@ -13,6 +13,17 @@ locals {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
+# Created once, out-of-band, via `aws ssm put-parameter` (see README) -- read
+# only, never managed here, so a human's local apply and CI's apply always
+# resolve the exact same live secret instead of two independently-set copies
+# that could silently drift apart.
+data "aws_ssm_parameter" "flask_secret_key" {
+  name            = var.flask_secret_key_ssm_parameter_name
+  with_decryption = true
+}
+
 module "dynamodb" {
   source     = "./modules/dynamodb"
   table_name = var.table_name
@@ -86,7 +97,7 @@ module "lambda_main_app" {
     TABLE_NAME     = module.dynamodb.table_name
     GSI1_NAME      = "GSI1"
     EVENT_BUS_NAME = module.eventbridge.bus_name
-    SECRET_KEY     = var.flask_secret_key
+    SECRET_KEY     = data.aws_ssm_parameter.flask_secret_key.value
   }
 
   iam_policy_statements = [
@@ -124,6 +135,7 @@ module "lambda_payment_service" {
     { actions = ["dynamodb:UpdateItem"], resources = [module.dynamodb.table_arn] },
   ]
 
+  has_sqs_trigger       = true
   sqs_trigger_queue_arn = module.sqs.queue_arns[local.queue_names.payment]
 }
 
@@ -143,6 +155,7 @@ module "lambda_inventory_service" {
     { actions = ["dynamodb:UpdateItem"], resources = [module.dynamodb.table_arn] },
   ]
 
+  has_sqs_trigger       = true
   sqs_trigger_queue_arn = module.sqs.queue_arns[local.queue_names.inventory]
 }
 
@@ -162,6 +175,7 @@ module "lambda_notification_service" {
     { actions = ["dynamodb:UpdateItem"], resources = [module.dynamodb.table_arn] },
   ]
 
+  has_sqs_trigger       = true
   sqs_trigger_queue_arn = module.sqs.queue_arns[local.queue_names.notification]
 }
 
@@ -170,4 +184,30 @@ module "api_gateway" {
   api_name             = "webshop-api"
   lambda_function_name = module.lambda_main_app.function_name
   lambda_invoke_arn    = module.lambda_main_app.invoke_arn
+}
+
+module "custom_domain" {
+  source      = "./modules/custom_domain"
+  domain_name = var.domain_name
+  root_domain = var.root_domain
+  api_id      = module.api_gateway.api_id
+  stage       = "$default"
+}
+
+module "github_oidc" {
+  source               = "./modules/github_oidc"
+  github_org           = var.github_org
+  github_repo          = var.github_repo
+  github_environment   = var.github_environment
+  create_oidc_provider = var.create_github_oidc_provider
+  state_bucket_arn     = "arn:aws:s3:::${var.tf_state_bucket_name}"
+  state_object_key     = var.tf_state_key
+  lock_table_arn       = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.tf_state_lock_table_name}"
+  ssm_parameter_arn    = data.aws_ssm_parameter.flask_secret_key.arn
+  lambda_function_arns = [
+    module.lambda_main_app.function_arn,
+    module.lambda_payment_service.function_arn,
+    module.lambda_inventory_service.function_arn,
+    module.lambda_notification_service.function_arn,
+  ]
 }

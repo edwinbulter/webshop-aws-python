@@ -1,9 +1,14 @@
-"""Loads app/seed/products.json into the DynamoDB table pointed at by
-DYNAMODB_ENDPOINT_URL / TABLE_NAME. Used for local development and as part of
-the pytest fixtures; never run against a real AWS account for this PoC."""
+"""Creates the DynamoDB table + GSI and the EventBridge bus/queues/rules
+against whatever DYNAMODB_ENDPOINT_URL/EVENTS_ENDPOINT_URL/SQS_ENDPOINT_URL
+point at -- for local development (moto) only. Mirrors terraform/main.tf's
+resource shapes closely enough for local testing, but is not a substitute
+for it and must never be pointed at a real AWS account: real infra is owned
+by Terraform (see README's "Deployment naar AWS"), which configures things
+this script doesn't replicate (e.g. DLQ redrive policies). To seed products
+into an already-provisioned environment (local or real), use
+scripts/seed_products.py instead."""
 
 import json
-from pathlib import Path
 
 from botocore.exceptions import ClientError
 
@@ -16,15 +21,6 @@ from app.config import (
     PAYMENT_QUEUE_NAME,
     TABLE_NAME,
 )
-from app.models.product import Product
-from app.repositories.single_table import put_products
-
-SEED_FILE = Path(__file__).resolve().parent.parent / "app" / "seed" / "products.json"
-
-
-def load_products() -> list[Product]:
-    raw = json.loads(SEED_FILE.read_text())
-    return [Product.from_item(item) for item in raw]
 
 
 def ensure_table_exists() -> None:
@@ -102,10 +98,7 @@ def ensure_event_infrastructure_exists() -> None:
 def main() -> None:
     ensure_table_exists()
     ensure_event_infrastructure_exists()
-    products = load_products()
-    put_products(products)
-    print(f"Seeded {len(products)} products into the table.")
-    print(f"Bootstrapped event bus '{EVENT_BUS_NAME}' and its 3 fan-out queues.")
+    print(f"Created table '{TABLE_NAME}', event bus '{EVENT_BUS_NAME}', and its 3 fan-out queues.")
 
 
 if __name__ == "__main__":

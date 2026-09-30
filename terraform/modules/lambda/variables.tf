@@ -58,10 +58,16 @@ variable "iam_policy_statements" {
   description = "Extra least-privilege IAM statements for this function's execution role, beyond basic CloudWatch Logs access."
 }
 
+variable "has_sqs_trigger" {
+  type        = bool
+  default     = false
+  description = "Whether to wire this function to an SQS queue via a native event source mapping (not via EventBridge invoking Lambda directly). A plain boolean, separate from sqs_trigger_queue_arn itself: on a first-ever apply the queue doesn't exist yet, so its ARN is unknown until apply -- `count` must branch on something known at plan time, so it branches on this instead."
+}
+
 variable "sqs_trigger_queue_arn" {
   type        = string
   default     = null
-  description = "If set, wires this function to the given SQS queue via a native event source mapping (not via EventBridge invoking Lambda directly)."
+  description = "The SQS queue ARN to wire up when has_sqs_trigger is true. Only read inside the conditionally-created resources, never used to drive `count` itself."
 }
 
 variable "sqs_batch_size" {

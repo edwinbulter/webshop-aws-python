@@ -11,6 +11,7 @@ terraform/**/terraform.tfstate.backup
 terraform/**/*.tfplan
 terraform/**/crash.log
 terraform/**/terraform.tfvars
+terraform/backend.env
 .terraform-build/
 
 # .terraform.lock.hcl is intentionally NOT ignored -- it pins provider
