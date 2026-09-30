@@ -212,11 +212,13 @@ uv run flask run
 > `import app` faalt met `ModuleNotFoundError`. Met `-m` (uitgevoerd vanuit de projectroot)
 > staat de projectroot wél op `sys.path`. Dit is standaard Python-gedrag, geen uv-quirk.
 
-De EventBridge-bus en de drie SQS-queues staan alleen in `tests/conftest.py` (nodig om de
-`OrderPlaced`-fan-out te kunnen testen); voor puur lokaal handmatig browsen door de
-catalogus/winkelwagen zijn die niet nodig — checkout blijft werken doordat
-`publish_order_placed` een publicatiefout altijd afvangt en logt (zie A10) in plaats van de
-bestelling te laten mislukken.
+`scripts.seed_local_table` bootstrapt naast de tabel ook de EventBridge-bus, de drie
+SQS-queues en de fan-out rules (idempotent, zelfde patroon als `terraform/main.tf`) —
+Afrekenen publiceert dus ook lokaal een echt `OrderPlaced`-event dat je met de AWS CLI tegen
+de moto-endpoint kunt bekijken (`aws --endpoint-url http://localhost:5001 sqs receive-message
+--queue-url <url>`). Mocht je die bootstrap-stap overslaan of de moto-server herstarten
+zonder opnieuw te seeden, dan blijft checkout gewoon werken: `publish_order_placed` vangt een
+ontbrekende bus af, logt de fout (zie A10) en laat de bestelling gewoon slagen.
 
 ## Testen
 

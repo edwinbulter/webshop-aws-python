@@ -16,13 +16,15 @@ import boto3  # noqa: E402
 import pytest  # noqa: E402
 from moto.server import ThreadedMotoServer  # noqa: E402
 
-from app.config import EVENT_BUS_NAME, TABLE_NAME  # noqa: E402
+from app.config import (  # noqa: E402
+    EVENT_BUS_NAME,
+    INVENTORY_QUEUE_NAME as INVENTORY_QUEUE,
+    NOTIFICATION_QUEUE_NAME as NOTIFICATION_QUEUE,
+    PAYMENT_QUEUE_NAME as PAYMENT_QUEUE,
+    TABLE_NAME,
+)
 from app.repositories.single_table import put_products  # noqa: E402
 from scripts.seed_local_table import ensure_table_exists, load_products  # noqa: E402
-
-PAYMENT_QUEUE = "payment-service-queue"
-INVENTORY_QUEUE = "inventory-service-queue"
-NOTIFICATION_QUEUE = "notification-service-queue"
 
 
 def _free_port() -> int:
