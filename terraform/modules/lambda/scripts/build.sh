@@ -3,7 +3,7 @@ set -euo pipefail
 
 BUILD_DIR="$1"
 REPO_ROOT="$2"
-REQUIREMENTS_FILE="$3"
+INSTALL_DEPENDENCIES="$3"
 shift 3
 SOURCE_PATHS=("$@")
 
@@ -16,8 +16,12 @@ for p in "${SOURCE_PATHS[@]}"; do
   cp -R "$REPO_ROOT/$p" "$dest_parent/"
 done
 
-if [ -n "$REQUIREMENTS_FILE" ] && [ "$REQUIREMENTS_FILE" != "null" ]; then
-  pip install --quiet --no-cache-dir --target "$BUILD_DIR" -r "$REPO_ROOT/$REQUIREMENTS_FILE"
+if [ "$INSTALL_DEPENDENCIES" = "true" ]; then
+  LOCKED_REQUIREMENTS="${BUILD_DIR}.requirements.txt"
+  uv export --quiet --project "$REPO_ROOT" --frozen --no-dev --no-emit-project --no-hashes \
+    --format requirements.txt -o "$LOCKED_REQUIREMENTS"
+  uv pip install --quiet --python 3.13 --target "$BUILD_DIR" -r "$LOCKED_REQUIREMENTS"
+  rm -f "$LOCKED_REQUIREMENTS"
 fi
 
 find "$BUILD_DIR" -name "__pycache__" -type d -prune -exec rm -rf {} +

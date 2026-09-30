@@ -11,12 +11,12 @@ locals {
 
 resource "null_resource" "build" {
   triggers = {
-    source_hash       = local.source_hash
-    requirements_hash = var.requirements_file != null ? filemd5("${var.repo_root}/${var.requirements_file}") : "none"
+    source_hash = local.source_hash
+    lock_hash   = var.install_dependencies ? "${filemd5("${var.repo_root}/pyproject.toml")}-${filemd5("${var.repo_root}/uv.lock")}" : "none"
   }
 
   provisioner "local-exec" {
-    command = "bash ${path.module}/scripts/build.sh ${local.build_dir} ${var.repo_root} ${var.requirements_file != null ? var.requirements_file : "null"} ${join(" ", var.source_paths)}"
+    command = "bash ${path.module}/scripts/build.sh ${local.build_dir} ${var.repo_root} ${var.install_dependencies} ${join(" ", var.source_paths)}"
   }
 }
 

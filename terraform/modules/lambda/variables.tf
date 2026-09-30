@@ -25,7 +25,7 @@ variable "memory_size" {
 
 variable "repo_root" {
   type        = string
-  description = "Absolute path to the repository root, used to resolve source_paths and requirements_file."
+  description = "Absolute path to the repository root, used to resolve source_paths and to run `uv export`."
 }
 
 variable "source_paths" {
@@ -33,10 +33,10 @@ variable "source_paths" {
   description = "Directories (relative to repo_root) to bundle into the deployment package, e.g. [\"app\"]."
 }
 
-variable "requirements_file" {
-  type        = string
-  default     = null
-  description = "Path (relative to repo_root) to a requirements.txt to pip install into the package. Null skips this (used by consumers, which only need boto3 -- already provided by the Lambda runtime)."
+variable "install_dependencies" {
+  type        = bool
+  default     = false
+  description = "If true, exports the project's uv.lock via `uv export` and installs the runtime dependencies into the package (used by the main app; consumers only need boto3, already provided by the Lambda runtime)."
 }
 
 variable "environment_variables" {

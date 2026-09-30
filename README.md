@@ -57,6 +57,7 @@ Lambda: webshop-main-app  (Flask via Mangum/ASGI, server-side rendered HTML-frag
 | Events | Amazon EventBridge (custom bus) → fan-out naar 3 Amazon SQS-queues |
 | IaC | Terraform (modules per component) |
 | Tests | pytest + moto (integratie), Playwright (Python, E2E) |
+| Tooling | [uv](https://docs.astral.sh/uv/) voor Python-versie- én dependency-beheer (`pyproject.toml` + `uv.lock`) |
 
 De Flask-app is bewust **niet** ASGI-native geschreven (Flask is WSGI); `asgiref.wsgi.WsgiToAsgi`
 verpakt de WSGI-app zodat Mangum — dat zelf een ASGI-adapter is — hem op Lambda kan draaien.
@@ -65,6 +66,8 @@ verpakt de WSGI-app zodat Mangum — dat zelf een ASGI-adapter is — hem op Lam
 
 ```
 webshop-aws-python/
+├── pyproject.toml + uv.lock    # dependencies, dev-tools en het gepinde uv-lockbestand
+├── .python-version             # pint de Python-versie (3.13) die `uv` gebruikt
 ├── docs/owasp-top-10.md        # uitgebreide risico-uitleg per OWASP-categorie
 ├── terraform/                 # IaC: root config + modules/{dynamodb,eventbridge,sqs,lambda,api_gateway}
 ├── app/                       # Flask-applicatie (main app Lambda)
@@ -163,7 +166,7 @@ landschap typisch sneller gebeurt dan je vooraf denkt.
 |---|---|---|
 | A01 | Broken Access Control | Cart-id komt uitsluitend uit de signed session-cookie, nooit uit request-body/query; order-id's zijn UUID's (niet te raden); elke Lambda heeft een eigen least-privilege IAM-rol (main app: alleen tabel-RW + `events:PutEvents`; elke consumer: alleen `sqs:ReceiveMessage`/`DeleteMessage` op zijn **eigen** queue) |
 | A02 | Security Misconfiguration | `PROPAGATE_EXCEPTIONS = False` zodat fouten altijd via de eigen error handlers lopen; `Content-Security-Policy` scoped op de exacte CDN-origins (geen `*`); geen enkele IAM policy-statement gebruikt `Resource: "*"` |
-| A03 | Software Supply Chain Failures | `requirements.txt`/`requirements-dev.txt` volledig gepind; HTMX- en Tailwind-CDN-scripts hebben een `integrity`-attribuut (SRI) tegen gepinde versies; `terraform/.terraform.lock.hcl` is bewust **niet** gitignored en pint providerversies |
+| A03 | Software Supply Chain Failures | Python-dependencies zijn exact gepind in `pyproject.toml` en vastgelegd (inclusief hashes) in `uv.lock`, dat bewust **niet** gitignored is; HTMX- en Tailwind-CDN-scripts hebben een `integrity`-attribuut (SRI) tegen gepinde versies; `terraform/.terraform.lock.hcl` is eveneens **niet** gitignored en pint providerversies |
 | A04 | Cryptographic Failures | `SECRET_KEY` komt uit een environment variable (nooit hardcoded in code of git); sessioncookie heeft `HttpOnly`, `SameSite=Lax`, `Secure` buiten lokale dev; de Payment-Lambda simuleert alleen — er wordt nooit echte betaalinformatie verwerkt of opgeslagen. **Eerlijke kanttekening:** in deze PoC staat `SECRET_KEY` als plain Lambda-environment-variabele (zichtbaar in de console/state) — prima voor een lokaal-geverifieerde demo, maar een echte productie-deploy zou hem uit AWS Secrets Manager of SSM Parameter Store (`SecureString`) laden bij cold start in plaats van via Terraform als platte env var mee te geven |
 | A05 | Injection | Alle DynamoDB-toegang loopt via boto3 `Key`/`Attr`-expression builders (nooit string-concatenatie); Jinja2-autoescape staat overal aan, nergens `\|safe` op gebruikersinvoer |
 | A06 | Insecure Design | Checkout hervalideert server-side: kleur moet in de actuele `colors[]` van het product zitten, hoeveelheid wordt geclamped (1–10), en het totaalbedrag wordt herberekend uit de actuele `price_cents` — nooit vertrouwd vanuit de client of zelfs vanuit de opgeslagen cart-regel |
@@ -174,11 +177,15 @@ landschap typisch sneller gebeurt dan je vooraf denkt.
 
 ## Lokaal draaien
 
+Dit project gebruikt [uv](https://docs.astral.sh/uv/) voor dependency- en
+Python-versiebeheer — geen handmatige `venv`/`pip`-stappen nodig. `uv sync` leest
+`pyproject.toml` + `uv.lock`, installeert automatisch Python 3.13 (gepind via
+`.python-version`) als die nog niet aanwezig is, en zet een `.venv` op met exact de
+gelockte dependency-versies.
+
 ```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-playwright install chromium
+uv sync
+uv run playwright install chromium
 
 export SECRET_KEY="dev-secret-key"
 export FLASK_APP="app.main:app"
@@ -187,14 +194,14 @@ export TABLE_NAME="WebshopTableLocal"
 export EVENT_BUS_NAME="webshop-event-bus-local"
 
 # start een lokale AWS-mock (DynamoDB + EventBridge + SQS) met moto
-python -m moto.server -p 5001 &
+uv run python -m moto.server -p 5001 &
 
 export DYNAMODB_ENDPOINT_URL="http://localhost:5001"
 export EVENTS_ENDPOINT_URL="http://localhost:5001"
 export SQS_ENDPOINT_URL="http://localhost:5001"
 
-python scripts/seed_local_table.py   # maakt de tabel + GSI aan (idempotent) en seedt 22 producten
-flask run
+uv run python scripts/seed_local_table.py   # maakt de tabel + GSI aan (idempotent) en seedt 22 producten
+uv run flask run
 ```
 
 De EventBridge-bus en de drie SQS-queues staan alleen in `tests/conftest.py` (nodig om de
@@ -207,13 +214,17 @@ bestelling te laten mislukken.
 
 ```bash
 # Integratietests: volledig gemockt met moto (DynamoDB, EventBridge, SQS) — geen AWS nodig
-pytest tests/integration -v
+uv run pytest tests/integration -v
 
 # End-to-end: Playwright tegen een echte `flask run`-server + dezelfde moto-mock
-pytest tests/e2e -v
+uv run pytest tests/e2e -v
 
 # Alles
-pytest
+uv run pytest
+
+# Lint/format-check (zelfde als de CI zou draaien)
+uv run ruff check app consumers scripts tests
+uv run black --check app consumers scripts tests
 ```
 
 De E2E-suite start zelf een `flask run`-subprocess (géén `sam local`/Docker) en een
@@ -238,10 +249,13 @@ bewust **niet** vereist voor dit project en hebben wél echte AWS-credentials no
 alsnog wil proberen moet een `flask_secret_key`-variabele meegeven (zie
 `terraform/variables.tf`).
 
-Elke Lambda-module bouwt zijn eigen deploy-package via een `null_resource` (local-exec
-naar `modules/lambda/scripts/build.sh`) die de benodigde broncode kopieert en, alleen voor
-de main-app, de dependencies uit `requirements.txt` meebundelt — de drie consumer-Lambda's
-hebben alleen `boto3` nodig, dat al in de Lambda-runtime zit.
+Elke Lambda-module bouwt zijn eigen deploy-package via een `null_resource` (local-exec naar
+`modules/lambda/scripts/build.sh`) die de benodigde broncode kopieert en, alleen voor de
+main-app, de runtime-dependencies meebundelt door `uv export` (op basis van `uv.lock`) te
+piped'en naar `uv pip install --target` — de drie consumer-Lambda's hebben alleen `boto3`
+nodig, dat al in de Lambda-runtime zit. `uv` moet dus geïnstalleerd zijn op de machine die
+`terraform apply` uitvoert (niet nodig voor `validate`/`fmt`, die draaien geen
+`local-exec`-provisioners).
 
 ## Verwachte AWS-kosten (± 100 API-calls/dag)
 

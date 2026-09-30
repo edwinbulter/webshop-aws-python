@@ -61,9 +61,13 @@ vervangen, laadt de browser van elke bezoeker straks kwaadaardige JavaScript —
 applicatiecode zelf is aangepast.
 
 **Hoe dit project dit voorkomt:**
-- `requirements.txt` en `requirements-dev.txt` pinnen elke dependency op een **exacte**
-  versie (`flask==3.1.0`, niet `flask>=3.1.0`). Een nieuwe, ongeteste versie van een
-  dependency kan dus nooit stilzwijgend meekomen bij een herinstallatie.
+- `pyproject.toml` pint elke dependency op een **exacte** versie (`flask==3.1.0`, niet
+  `flask>=3.1.0`), en `uv.lock` legt daar bovenop de volledige resolutie **inclusief
+  cryptografische hashes** van elk package vast. `uv sync`/`uv run` verifiëren die hashes bij
+  installatie — een dependency kan dus nooit stilzwijgend vervangen worden door een andere
+  (nieuwere, of gemanipuleerde) versie, zelfs niet als die toevallig hetzelfde versienummer
+  zou dragen. `uv.lock` staat bewust **niet** in `.gitignore`, net als
+  `terraform/.terraform.lock.hcl`.
 - De HTMX- en Tailwind-`<script>`-tags in `app/templates/base.html` hebben een
   `integrity="sha384-…"`-attribuut (Subresource Integrity). De browser berekent zelf de
   hash van het gedownloade script en vergelijkt die met de verwachte waarde; komt die niet

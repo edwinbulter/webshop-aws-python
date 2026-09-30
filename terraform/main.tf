@@ -75,12 +75,12 @@ resource "aws_sqs_queue_policy" "allow_eventbridge" {
 }
 
 module "lambda_main_app" {
-  source            = "./modules/lambda"
-  function_name     = "webshop-main-app"
-  handler           = "app.main.handler"
-  repo_root         = local.repo_root
-  source_paths      = ["app"]
-  requirements_file = "requirements.txt"
+  source               = "./modules/lambda"
+  function_name        = "webshop-main-app"
+  handler              = "app.main.handler"
+  repo_root            = local.repo_root
+  source_paths         = ["app"]
+  install_dependencies = true
 
   environment_variables = {
     TABLE_NAME     = module.dynamodb.table_name
@@ -109,12 +109,11 @@ module "lambda_main_app" {
 }
 
 module "lambda_payment_service" {
-  source            = "./modules/lambda"
-  function_name     = "webshop-payment-service"
-  handler           = "consumers.payment_service.handler.handler"
-  repo_root         = local.repo_root
-  source_paths      = ["app", "consumers"]
-  requirements_file = null
+  source        = "./modules/lambda"
+  function_name = "webshop-payment-service"
+  handler       = "consumers.payment_service.handler.handler"
+  repo_root     = local.repo_root
+  source_paths  = ["app", "consumers"]
 
   environment_variables = {
     TABLE_NAME = module.dynamodb.table_name
@@ -129,12 +128,11 @@ module "lambda_payment_service" {
 }
 
 module "lambda_inventory_service" {
-  source            = "./modules/lambda"
-  function_name     = "webshop-inventory-service"
-  handler           = "consumers.inventory_service.handler.handler"
-  repo_root         = local.repo_root
-  source_paths      = ["app", "consumers"]
-  requirements_file = null
+  source        = "./modules/lambda"
+  function_name = "webshop-inventory-service"
+  handler       = "consumers.inventory_service.handler.handler"
+  repo_root     = local.repo_root
+  source_paths  = ["app", "consumers"]
 
   environment_variables = {
     TABLE_NAME = module.dynamodb.table_name
@@ -149,12 +147,11 @@ module "lambda_inventory_service" {
 }
 
 module "lambda_notification_service" {
-  source            = "./modules/lambda"
-  function_name     = "webshop-notification-service"
-  handler           = "consumers.notification_service.handler.handler"
-  repo_root         = local.repo_root
-  source_paths      = ["app", "consumers"]
-  requirements_file = null
+  source        = "./modules/lambda"
+  function_name = "webshop-notification-service"
+  handler       = "consumers.notification_service.handler.handler"
+  repo_root     = local.repo_root
+  source_paths  = ["app", "consumers"]
 
   environment_variables = {
     TABLE_NAME = module.dynamodb.table_name
