@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Account bevestigen{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+  <h1 class="text-2xl font-extrabold mb-2">Account bevestigen</h1>
+  <p class="text-gray-600 mb-4">
+    We hebben een verificatiecode gestuurd naar <strong>{{ email }}</strong>.
+  </p>
+  <form method="post" action="/confirm" class="space-y-3">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="action" value="confirm">
+    <div>
+      <label for="code" class="block text-sm font-medium mb-1">Verificatiecode</label>
+      <input type="text" name="code" id="code" required inputmode="numeric"
+             class="w-full border rounded px-3 py-2">
+    </div>
+    <button type="submit" class="w-full bg-[#0058a3] text-white font-semibold rounded py-2 hover:bg-[#004a87]">
+      Bevestigen
+    </button>
+  </form>
+  <form method="post" action="/confirm" class="mt-3">
+    <input type="hidden" name="email" value="{{ email }}">
+    <input type="hidden" name="action" value="resend">
+    <button type="submit" class="w-full border border-gray-300 rounded py-2 font-semibold hover:bg-gray-100">
+      Code opnieuw versturen
+    </button>
+  </form>
+</div>
+{% endblock %}

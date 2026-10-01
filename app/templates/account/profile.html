@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Mijn profiel{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-extrabold mb-6">Mijn profiel</h1>
+
+<div class="mb-6">
+  <a href="/account/orders" class="text-[#0058a3] hover:underline">Mijn bestellingen &rarr;</a>
+</div>
+
+<form method="post" action="/account" class="space-y-6">
+  <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="font-bold text-lg mb-4">Persoonlijke gegevens</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">E-mailadres</label>
+        <input type="email" value="{{ profile.email }}" disabled
+               class="w-full border rounded px-3 py-2 bg-gray-100 text-gray-500">
+      </div>
+      <div></div>
+      <div>
+        <label for="given_name" class="block text-sm font-medium mb-1">Voornaam</label>
+        <input type="text" name="given_name" id="given_name" value="{{ profile.given_name }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="family_name" class="block text-sm font-medium mb-1">Achternaam</label>
+        <input type="text" name="family_name" id="family_name" value="{{ profile.family_name }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="font-bold text-lg mb-4">Afleveradres</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="sm:col-span-2">
+        <label for="shipping_name" class="block text-sm font-medium mb-1">Naam</label>
+        <input type="text" name="shipping_name" id="shipping_name" value="{{ profile.shipping_address.name }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+      <div class="sm:col-span-2">
+        <label for="shipping_street" class="block text-sm font-medium mb-1">Straat en huisnummer</label>
+        <input type="text" name="shipping_street" id="shipping_street"
+               value="{{ profile.shipping_address.street }}" class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="shipping_postal_code" class="block text-sm font-medium mb-1">Postcode</label>
+        <input type="text" name="shipping_postal_code" id="shipping_postal_code"
+               value="{{ profile.shipping_address.postal_code }}" class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="shipping_city" class="block text-sm font-medium mb-1">Plaats</label>
+        <input type="text" name="shipping_city" id="shipping_city" value="{{ profile.shipping_address.city }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="shipping_country" class="block text-sm font-medium mb-1">Land</label>
+        <input type="text" name="shipping_country" id="shipping_country"
+               value="{{ profile.shipping_address.country }}" class="w-full border rounded px-3 py-2">
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow p-6">
+    <h2 class="font-bold text-lg mb-4">Factuuradres</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="sm:col-span-2">
+        <label for="billing_name" class="block text-sm font-medium mb-1">Naam</label>
+        <input type="text" name="billing_name" id="billing_name" value="{{ profile.billing_address.name }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+      <div class="sm:col-span-2">
+        <label for="billing_street" class="block text-sm font-medium mb-1">Straat en huisnummer</label>
+        <input type="text" name="billing_street" id="billing_street"
+               value="{{ profile.billing_address.street }}" class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="billing_postal_code" class="block text-sm font-medium mb-1">Postcode</label>
+        <input type="text" name="billing_postal_code" id="billing_postal_code"
+               value="{{ profile.billing_address.postal_code }}" class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="billing_city" class="block text-sm font-medium mb-1">Plaats</label>
+        <input type="text" name="billing_city" id="billing_city" value="{{ profile.billing_address.city }}"
+               class="w-full border rounded px-3 py-2">
+      </div>
+      <div>
+        <label for="billing_country" class="block text-sm font-medium mb-1">Land</label>
+        <input type="text" name="billing_country" id="billing_country"
+               value="{{ profile.billing_address.country }}" class="w-full border rounded px-3 py-2">
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="bg-[#0058a3] text-white font-semibold rounded px-6 py-2 hover:bg-[#004a87]">
+    Opslaan
+  </button>
+</form>
+{% endblock %}

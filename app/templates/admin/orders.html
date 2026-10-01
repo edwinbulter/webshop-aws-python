@@ -1,0 +1,38 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "orders" %}
+{% block title %}Beheer -- Bestellingen{% endblock %}
+{% block admin_content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-3xl font-extrabold">Bestellingen &amp; Logistiek</h1>
+  <a href="/admin/returns" class="text-[#0058a3] hover:underline font-semibold">Retouren &rarr;</a>
+</div>
+
+<form method="get" class="mb-4">
+  <select name="status" onchange="this.form.submit()" class="border rounded px-3 py-2">
+    <option value="">Alle statussen</option>
+    {% for status, label in status_labels.items() %}
+    <option value="{{ status }}" {{ "selected" if status == status_filter }}>{{ label }}</option>
+    {% endfor %}
+  </select>
+</form>
+
+{% if orders %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="admin-order-list">
+  {% for order in orders %}
+  <a href="/admin/orders/{{ order.id }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="admin-order-row">
+    <div>
+      <p class="font-mono text-sm text-gray-500">{{ order.id }}</p>
+      <p class="text-sm text-gray-500">{{ order.created_at_display }}</p>
+    </div>
+    <p class="text-sm font-semibold">{{ order.status_label }}</p>
+    <p class="font-bold">{{ order.total_display }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8" data-testid="admin-orders-empty">
+  Geen bestellingen gevonden.
+</p>
+{% endif %}
+{% endblock %}

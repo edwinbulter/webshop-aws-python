@@ -1,0 +1,65 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "orders" %}
+{% block title %}Beheer -- Bestelling {{ order.id }}{% endblock %}
+{% block admin_content %}
+<a href="/admin/orders" class="text-[#0058a3] hover:underline">&larr; Bestellingen</a>
+
+<h1 class="text-3xl font-extrabold mt-2 mb-1">Bestelling</h1>
+<p class="font-mono text-sm text-gray-500 mb-6" data-testid="admin-order-id">{{ order.id }}</p>
+
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+  <p class="mb-1">
+    <span class="text-gray-500">Status:</span>
+    <span data-testid="admin-order-status" data-status="{{ order.status }}">{{ order.status_label }}</span>
+  </p>
+  <p class="mb-1"><span class="text-gray-500">Geplaatst op:</span> {{ order.created_at_display }}</p>
+  <p class="mb-1">
+    <span class="text-gray-500">Klant:</span>
+    {{ order.user_sub if order.user_sub else "Gast" }}
+  </p>
+  <p class="text-xl font-extrabold text-[#0058a3] mt-2" data-testid="admin-order-total">{{ order.total_display }}</p>
+
+  {% if return_request %}
+  <div class="mt-4 bg-gray-50 border border-gray-200 rounded p-3 text-sm" data-testid="admin-return-info">
+    <p class="font-semibold">Retour gemeld op {{ return_request.reported_at_display }}</p>
+    <p class="text-gray-600">Reden: {{ return_request.reason }}</p>
+  </div>
+  {% endif %}
+
+  {% if stock_shortages %}
+  <div class="mt-4 bg-red-50 border border-red-200 text-red-800 rounded p-3 text-sm"
+       data-testid="stock-shortage-warning">
+    <p class="font-semibold">Onvoldoende voorraad om te verzenden</p>
+    <ul class="list-disc list-inside mt-1 space-y-1">
+      {% for line in stock_shortages %}
+      <li>
+        <a href="/admin/products/{{ line.product_id }}" class="underline">{{ line.title }} ({{ line.color }})</a>
+        &mdash; nodig: {{ line.quantity }}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="mt-2">Verhoog eerst de voorraad voordat je deze bestelling kan verzenden.</p>
+  </div>
+  {% elif next_status %}
+  <form method="post" action="/admin/orders/{{ order.id }}/advance" class="mt-4">
+    <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+    <button type="submit" data-testid="admin-advance-status-button"
+            class="bg-[#0058a3] text-white rounded px-4 py-2 font-semibold hover:bg-[#004a8a]">
+      Markeer als '{{ next_status_label }}'
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="bg-white rounded-lg shadow divide-y">
+  {% for line in order.lines %}
+  <div class="flex items-center justify-between p-4">
+    <div>
+      <p class="font-semibold">{{ line.title }}</p>
+      <p class="text-sm text-gray-500">Kleur: {{ line.color }} &middot; Aantal: {{ line.quantity }}</p>
+    </div>
+    <p class="font-bold">{{ "€ %.2f"|format(line.quantity * line.price_cents / 100) }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

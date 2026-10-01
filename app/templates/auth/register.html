@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Registreren{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+  <h1 class="text-2xl font-extrabold mb-4">Account aanmaken</h1>
+  <form method="post" action="/register" class="space-y-3">
+    <div>
+      <label for="email" class="block text-sm font-medium mb-1">E-mailadres</label>
+      <input type="email" name="email" id="email" required value="{{ email|default('') }}"
+             class="w-full border rounded px-3 py-2">
+    </div>
+    <div>
+      <label for="password" class="block text-sm font-medium mb-1">Wachtwoord</label>
+      <input type="password" name="password" id="password" required minlength="8"
+             class="w-full border rounded px-3 py-2">
+      <p class="text-xs text-gray-500 mt-1">
+        Minimaal 8 tekens, met een hoofdletter, een kleine letter en een cijfer.
+      </p>
+    </div>
+    <div>
+      <label for="password_confirm" class="block text-sm font-medium mb-1">Bevestig wachtwoord</label>
+      <input type="password" name="password_confirm" id="password_confirm" required minlength="8"
+             class="w-full border rounded px-3 py-2">
+    </div>
+    <button type="submit" class="w-full bg-[#0058a3] text-white font-semibold rounded py-2 hover:bg-[#004a87]">
+      Account aanmaken
+    </button>
+  </form>
+  <p class="text-sm text-gray-600 mt-4">
+    Al een account? <a href="/login" class="text-[#0058a3] hover:underline">Inloggen</a>
+  </p>
+</div>
+{% endblock %}

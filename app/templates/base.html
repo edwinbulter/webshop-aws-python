@@ -20,16 +20,57 @@
       <a href="/" class="text-2xl font-extrabold tracking-tight">Nordic Wonen</a>
       <nav class="flex items-center gap-4">
         <a href="/" class="hover:underline">Bureaulampen</a>
+        {% if not (current_user and current_user.is_admin) %}
         <a href="/cart" class="relative hover:underline">
           Winkelwagen
           <span id="cart-count"
                 class="ml-1 inline-flex items-center justify-center bg-[#ffcc00] text-[#0058a3] font-bold rounded-full w-6 h-6 text-sm align-middle">{{ cart_count|default(0) }}</span>
         </a>
+        {% endif %}
+
+        {% if current_user %}
+        <details class="relative" data-testid="account-menu">
+          <summary class="list-none cursor-pointer flex items-center gap-2 select-none">
+            <span class="text-sm leading-tight text-right hidden sm:block">
+              Welkom<br><strong>{{ nav_display_name }}</strong>
+            </span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-7 h-7" aria-hidden="true">
+              <path d="M12 12c2.69 0 4.875-2.185 4.875-4.875S14.69 2.25 12 2.25s-4.875 2.185-4.875 4.875S9.31 12 12 12Zm0 2.4c-3.315 0-9.75 1.605-9.75 4.875v2.475h19.5v-2.475c0-3.27-6.435-4.875-9.75-4.875Z"/>
+            </svg>
+          </summary>
+          <div class="absolute right-0 mt-2 w-48 bg-white text-gray-900 rounded-lg shadow-lg overflow-hidden z-50 divide-y divide-gray-100">
+            {% if current_user.is_admin %}
+            <a href="/admin" class="block px-4 py-2 hover:bg-gray-50" data-testid="nav-beheer">Beheer</a>
+            {% else %}
+            <a href="/account/orders" class="block px-4 py-2 hover:bg-gray-50" data-testid="nav-orders">Bestellingen</a>
+            <a href="/account" class="block px-4 py-2 hover:bg-gray-50" data-testid="nav-profile">Gegevens</a>
+            {% endif %}
+            <form method="post" action="/logout">
+              <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-50" data-testid="nav-logout">Uitloggen</button>
+            </form>
+          </div>
+        </details>
+        {% else %}
+          <a href="/login" class="hover:underline" data-testid="nav-login">Inloggen</a>
+          <a href="/register" class="hover:underline">Registreren</a>
+        {% endif %}
       </nav>
     </div>
   </header>
 
   <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-8">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6 space-y-2">
+          {% for category, message in messages %}
+            <div class="rounded p-3 text-sm {{ 'bg-red-50 border border-red-200 text-red-800' if category == 'error' else 'bg-green-50 border border-green-200 text-green-800' }}"
+                 data-testid="flash-{{ category }}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </main>
 

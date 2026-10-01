@@ -18,6 +18,11 @@ output "live_url" {
   value = module.custom_domain.live_url
 }
 
+output "cognito_user_pool_id" {
+  value       = module.cognito.user_pool_id
+  description = "Used by the one-off `aws cognito-idp admin-create-user` bootstrap command for the fixed admin account (see README's Deployment naar AWS)."
+}
+
 output "github_deploy_role_arn" {
   value       = module.github_oidc.role_arn
   description = "Set this as the AWS_DEPLOY_ROLE_ARN repo Variable in GitHub so deploy.yml can assume it via OIDC."

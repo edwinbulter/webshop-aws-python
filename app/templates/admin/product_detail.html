@@ -1,0 +1,28 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "products" %}
+{% block title %}Beheer -- {{ product.title }}{% endblock %}
+{% block admin_content %}
+<a href="/admin/products" class="text-[#0058a3] hover:underline">&larr; Producten</a>
+
+<h1 class="text-3xl font-extrabold mt-2 mb-1">{{ product.title }}</h1>
+<p class="font-mono text-sm text-gray-500 mb-6">{{ product.id }}</p>
+
+<div class="bg-white rounded-lg shadow p-6">
+  <p class="text-xl font-extrabold text-[#0058a3] mb-4">{{ product.price_display }}</p>
+
+  <form method="post" action="/admin/products/{{ product.id }}/stock" class="space-y-4" data-testid="stock-form">
+    <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+    {% for color, stock_qty in variants %}
+    <div class="flex items-center justify-between">
+      <label for="stock_{{ color }}" class="font-medium">{{ color }}</label>
+      <input type="number" min="0" id="stock_{{ color }}" name="stock_{{ color }}" value="{{ stock_qty }}"
+             class="border rounded px-3 py-2 w-28" data-testid="stock-input-{{ color }}">
+    </div>
+    {% endfor %}
+    <button type="submit" data-testid="save-stock-button"
+            class="bg-[#0058a3] text-white rounded px-4 py-2 font-semibold hover:bg-[#004a8a]">
+      Voorraad opslaan
+    </button>
+  </form>
+</div>
+{% endblock %}

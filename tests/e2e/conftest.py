@@ -31,7 +31,10 @@ def _wait_until_ready(base_url: str, process: subprocess.Popen, timeout: float =
 
 
 @pytest.fixture(scope="session")
-def live_server_url(dynamodb_table, eventbridge_bus_and_queues, aws_endpoints):
+def live_server_url(dynamodb_table, eventbridge_bus_and_queues, cognito_pool, aws_endpoints):
+    # cognito_pool must resolve (and set its 3 env vars) before os.environ is
+    # copied below for the flask run subprocess -- listing it as a parameter
+    # here forces that ordering.
     port = _free_port()
     env = os.environ.copy()
     env["FLASK_APP"] = "app.main:app"

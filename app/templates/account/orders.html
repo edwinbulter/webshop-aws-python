@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Mijn bestellingen{% endblock %}
+{% block content %}
+<h1 class="text-3xl font-extrabold mb-6">Mijn bestellingen</h1>
+
+{% if orders %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="order-list">
+  {% for order in orders %}
+  <a href="/account/orders/{{ order.id }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="order-row" data-order-id="{{ order.id }}">
+    <div>
+      <p class="font-mono text-sm text-gray-500">{{ order.id }}</p>
+      <p class="text-sm text-gray-500">{{ order.created_at_display }}</p>
+    </div>
+    <p class="text-sm font-semibold">{{ order.status_label }}</p>
+    <p class="font-bold">{{ order.total_display }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8" data-testid="orders-empty">
+  Je hebt nog geen bestellingen geplaatst.
+</p>
+{% endif %}
+{% endblock %}

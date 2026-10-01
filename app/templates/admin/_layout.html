@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+{# Rendered once here (rather than per-form) so every /admin/* page exposes
+   the session's CSRF token the same way account/profile.html always does --
+   each individual POST form below still carries its own hidden copy. #}
+<input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}" data-testid="admin-csrf-token">
+<nav class="flex gap-4 mb-6 border-b border-gray-200 pb-3 text-sm font-semibold" data-testid="admin-nav">
+  <a href="/admin" class="hover:underline {{ 'text-[#0058a3]' if admin_section == 'dashboard' }}">Dashboard</a>
+  <a href="/admin/orders" class="hover:underline {{ 'text-[#0058a3]' if admin_section == 'orders' }}">Bestellingen &amp; Logistiek</a>
+  <a href="/admin/products" class="hover:underline {{ 'text-[#0058a3]' if admin_section == 'products' }}">Product- &amp; Voorraadbeheer</a>
+  <a href="/admin/customers" class="hover:underline {{ 'text-[#0058a3]' if admin_section == 'customers' }}">Klantenbeheer</a>
+</nav>
+{% block admin_content %}{% endblock %}
+{% endblock %}

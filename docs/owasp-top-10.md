@@ -24,10 +24,32 @@ order namens iemand anders.
   nummers. Oplopende ID's (`ORDER#1`, `ORDER#2`, …) zouden een aanvaller in staat stellen
   simpelweg te "tellen" en bestellingen van anderen te bekijken.
 - Elke Lambda-functie heeft in Terraform (`terraform/modules/lambda`) een **eigen**,
-  krap toegesneden IAM-rol: de main-app-Lambda mag alleen bij de DynamoDB-tabel en
-  `events:PutEvents`; elke consumer-Lambda mag alleen `sqs:ReceiveMessage`/`DeleteMessage`
-  op **zijn eigen** queue. Zelfs als één functie gecompromitteerd zou raken, kan die niet
-  bij de queues of resources van de andere functies.
+  krap toegesneden IAM-rol: de main-app-Lambda mag alleen bij de DynamoDB-tabel,
+  `events:PutEvents`, en een nauw begrensde set Cognito-`Admin*`/`List*`-calls (zie A07);
+  elke consumer-Lambda mag alleen `sqs:ReceiveMessage`/`DeleteMessage` op **zijn eigen**
+  queue. Zelfs als één functie gecompromitteerd zou raken, kan die niet bij de queues of
+  resources van de andere functies.
+- **Order-eigendom, niet alleen bestaan.** `app/routes/account.py::_get_own_order_or_404`
+  en de admin-equivalent geven **altijd** een `404` terug als een order niet bestaat **of**
+  niet van de ingelogde gebruiker is — exact dezelfde foutmelding voor beide gevallen. Dat
+  is bewust: als "niet van jou" een `403` zou geven en "bestaat niet" een `404`, kan een
+  aanvaller door simpelweg order-ID's te proberen ontdekken welke ID's echt bestaan (een
+  side-channel), ook al krijgt hij de inhoud niet te zien. Door beide gevallen identiek te
+  maken, lekt de route zelf niets over wat er in de tabel staat.
+- **Blueprint-brede `before_request`, niet per-route-decorators, als primaire verdediging**
+  voor zowel `/account/*` als `/admin/*`. Een decorator die op route veertien vergeten
+  wordt, is een reëel risico in een groeiende codebase; een hook op blueprint-niveau kan
+  per-route niet overgeslagen worden. De admin-gate wordt hiernaast geverifieerd door een
+  test die `app.url_map.iter_rules()` doorloopt en voor **elke** `/admin/*`-route
+  controleert dat zowel een anonieme bezoeker als een ingelogde, niet-admin klant een `404`
+  krijgt (`tests/integration/test_admin_gate.py`) — zodat een nieuwe route die per ongeluk
+  buiten de blueprint valt, niet stil door de mazen glipt.
+- **CSRF.** Zodra er geauthenticeerde, state-wijzigende acties bestaan (profiel bewerken,
+  bestelling annuleren, admin-statuswijziging), is de bestaande `SameSite=Lax`-cookie
+  alleen niet meer genoeg als enige verdediging. Elke `POST` in `account.bp` en `admin.bp`
+  valideert daarom een per-sessie CSRF-token uit het `SESSION#<id>`-item
+  (`app/auth/session.py::verify_csrf_token`, `hmac.compare_digest` om een timing-aanval op
+  de vergelijking zelf uit te sluiten).
 
 ## A02 — Security Misconfiguration
 
@@ -108,11 +130,13 @@ gevoelige data zoals creditcardnummers.
   *simuleert* een betaling en werkt alleen een statusveld bij. Er wordt nergens een
   creditcardnummer, IBAN of ander betaalmiddel verwerkt of opgeslagen — data die je niet
   opslaat, kan ook niet lekken.
-- **Eerlijke kanttekening:** `SECRET_KEY` wordt in de Terraform-configuratie als platte
-  Lambda-environment-variabele doorgegeven (zichtbaar in de AWS-console en in de Terraform
-  state). Voor deze lokaal-geverifieerde PoC is dat een bewuste, gedocumenteerde
-  vereenvoudiging; een echte productiedeploy zou de sleutel bij het opstarten ophalen uit
-  AWS Secrets Manager of SSM Parameter Store (`SecureString`).
+- Cognito beheert wachtwoord-hashing en -opslag zelf — deze applicatie ziet of bewaart
+  nooit een wachtwoord in platte tekst, ook niet tijdelijk (zie A07).
+- **Eerlijke kanttekening:** zowel `SECRET_KEY` als `COGNITO_CLIENT_SECRET` worden in de
+  Terraform-configuratie als platte Lambda-environment-variabele doorgegeven (zichtbaar in
+  de AWS-console en in de Terraform state). Voor deze lokaal-geverifieerde PoC is dat een
+  bewuste, gedocumenteerde vereenvoudiging; een echte productiedeploy zou beide bij het
+  opstarten ophalen uit AWS Secrets Manager of SSM Parameter Store (`SecureString`).
 
 ## A05 — Injection
 
@@ -162,15 +186,45 @@ verborgen veld simpelweg aan met de browser-devtools en koopt een lamp van €39
 ## A07 — Authentication Failures
 
 **Wat is het risico?** Zwakke of zelfgebouwde authenticatie — bijvoorbeeld eigen
-wachtwoord-hashing, voorspelbare sessie-ID's, of het ontbreken van rate-limiting op een
-inlogpoging — waardoor accounts overgenomen kunnen worden.
+wachtwoord-hashing, voorspelbare sessie-ID's, het lekken van "bestaat dit e-mailadres al"
+bij registratie/login, of het ontbreken van rate-limiting op een inlogpoging — waardoor
+accounts overgenomen kunnen worden.
 
-**Hoe dit project dit voorkomt:** Deze PoC heeft **bewust geen gebruikersaccounts of login**
-— het is een gast-winkelwagen, geïdentificeerd via de signed session-cookie (zie A01/A04).
-Er is dus geen zelfgebouwd authenticatiesysteem dat kwetsbaar zou kunnen zijn. Mocht dit
-project uitgebreid worden met accounts, dan is de aanbeveling om een beproefde
-identity-provider zoals Amazon Cognito te gebruiken in plaats van zelf
-wachtwoord-opslag/sessiebeheer te bouwen.
+**Hoe dit project dit voorkomt:**
+- Wachtwoord-opslag en -hashing zijn **nooit zelfgebouwd**: AWS Cognito User Pool doet dit,
+  aangestuurd via `boto3` (`app/auth/cognito.py`) — geen Hosted UI/OAuth-redirect, want dit
+  is een server-side gerenderde Flask-app. De App Client is een confidential client
+  (`generate_secret = true`); elke call draagt een `SECRET_HASH`
+  (`base64(HMAC-SHA256(client_secret, username+client_id))` — `.digest()` + base64, niet
+  `.hexdigest()`, een veelgemaakte fout die een unit-test hier expliciet tegen een
+  hand-berekende verwachte waarde controleert).
+- `prevent_user_existence_errors = "ENABLED"` op de App Client zorgt dat registratie, login
+  en wachtwoordherstel **nooit** laten zien of een e-mailadres al bestaat — zowel Cognito
+  zelf als de UI-foutmeldingen in `app/routes/auth.py` behandelen "onbekend e-mailadres" en
+  "verkeerd wachtwoord" identiek.
+- **Sessies bevatten nooit een ruwe Cognito-token.** De signed-maar-niet-versleutelde
+  sessiecookie bevat één ondoorzichtige `session_id` (`secrets.token_urlsafe(32)`); de
+  echte sessiedata (sub, e-mail, groepen, CSRF-token, verloopmoment) leeft server-side in
+  een `SESSION#<id>`-DynamoDB-item. Dat maakt **echte server-side logout** mogelijk (het
+  item verwijderen beëindigt de sessie overal onmiddellijk) en betekent dat een gestolen
+  cookie zonder toegang tot de tabel niets waard is.
+- **Geen refresh-token wordt bewaard** — sessies zijn vast 8 uur geldig, geen stille
+  verlenging. Dat is een bewuste vereenvoudiging: er staat zo nooit een herbruikbare
+  credential in DynamoDB die bij een datalek extra schade zou kunnen aanrichten.
+  `session_id` wordt bovendien bij elke login geroteerd (sessie-fixatie-verdediging).
+- **De app decodeert nergens een JWT.** Groepslidmaatschap (klant vs. admin) wordt bij
+  login opgehaald via `AdminListGroupsForUser` (IAM-geautoriseerd, niet token-geautoriseerd)
+  en in de sessie gecachet. Dit elimineert het grootste praktische risico van een
+  zelfgebouwde JWT-verificatielaag (een vergeten signature-check, een verkeerd
+  JWKS-endpoint) simpelweg door die laag niet te hebben — en maakt de teststrategie
+  robuuster, omdat mocked JWKS-endpoints notoir onbetrouwbaar zijn tussen moto-versies.
+- Er bestaat bewust **geen aparte `Customers`-Cognito-groep** — afwezigheid van
+  groepslidmaatschap ís de klant-standaard, en alleen de `Admins`-groep is echt. Dat
+  beperkt wat er fout kan gaan in de rol-logica tot één voorwaarde
+  (`"Admins" in groups`) in plaats van een expliciete twee-rollen-vertakking.
+- **Eerlijke kanttekening:** MFA staat uit (`mfa_configuration = "OFF"`) — een bewuste,
+  benoemde PoC-scope-keuze, geen vergeten instelling. Zie ook de CSRF-maatregel onder A01,
+  die nieuw is sinds er geauthenticeerde state-wijzigende acties bestaan.
 
 ## A08 — Software or Data Integrity Failures
 

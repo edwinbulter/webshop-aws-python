@@ -1,0 +1,38 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "customers" %}
+{% block title %}Beheer -- {{ customer.email }}{% endblock %}
+{% block admin_content %}
+<a href="/admin/customers" class="text-[#0058a3] hover:underline">&larr; Klanten</a>
+
+<h1 class="text-3xl font-extrabold mt-2 mb-1" data-testid="admin-customer-email">{{ customer.email }}</h1>
+<p class="text-sm text-gray-500 mb-6">Status: {{ customer.status }} &middot; sub: {{ customer.sub }}</p>
+
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+  <h2 class="text-xl font-bold mb-3">Profiel</h2>
+  {% if profile %}
+  <p>{{ profile.given_name }} {{ profile.family_name }}</p>
+  <p class="text-sm text-gray-500 mt-2">Afleveradres</p>
+  <p>{{ profile.shipping_address.street }}, {{ profile.shipping_address.postal_code }} {{ profile.shipping_address.city }}</p>
+  {% else %}
+  <p class="text-gray-500" data-testid="admin-customer-no-profile">Deze klant heeft nog geen profiel ingevuld.</p>
+  {% endif %}
+</div>
+
+<h2 class="text-xl font-bold mb-3">Bestellingen</h2>
+{% if orders %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="admin-customer-orders">
+  {% for order in orders %}
+  <a href="/admin/orders/{{ order.id }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="admin-customer-order-row">
+    <p class="font-mono text-sm text-gray-500">{{ order.id }}</p>
+    <p class="text-sm font-semibold">{{ order.status_label }}</p>
+    <p class="font-bold">{{ order.total_display }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8" data-testid="admin-customer-no-orders">
+  Deze klant heeft nog geen bestellingen geplaatst.
+</p>
+{% endif %}
+{% endblock %}

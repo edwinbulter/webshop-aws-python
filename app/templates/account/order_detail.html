@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Bestelling {{ order.id }}{% endblock %}
+{% block content %}
+<a href="/account/orders" class="text-[#0058a3] hover:underline">&larr; Mijn bestellingen</a>
+
+<h1 class="text-3xl font-extrabold mt-2 mb-1">Bestelling</h1>
+<p class="font-mono text-sm text-gray-500 mb-6" data-testid="order-id">{{ order.id }}</p>
+
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+  <p class="mb-1">
+    <span class="text-gray-500">Status:</span>
+    <span data-testid="order-status" data-status="{{ order.status }}">{{ order.status_label }}</span>
+  </p>
+  <p class="mb-1"><span class="text-gray-500">Geplaatst op:</span> {{ order.created_at_display }}</p>
+  <p class="text-xl font-extrabold text-[#0058a3] mt-2" data-testid="order-total">{{ order.total_display }}</p>
+
+  {% if can_cancel %}
+  <form method="post" action="/account/orders/{{ order.id }}/cancel" class="mt-4">
+    <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+    <button type="submit" data-testid="cancel-order-button"
+            class="border border-red-300 text-red-700 rounded px-4 py-2 font-semibold hover:bg-red-50">
+      Bestelling annuleren
+    </button>
+  </form>
+  {% endif %}
+
+  {% if existing_return %}
+  <div class="mt-4 bg-gray-50 border border-gray-200 rounded p-3 text-sm" data-testid="return-reported">
+    <p class="font-semibold">Retour gemeld op {{ existing_return.reported_at_display }}</p>
+    <p class="text-gray-600">Reden: {{ existing_return.reason }}</p>
+  </div>
+  {% elif can_report_return %}
+  <form method="post" action="/account/orders/{{ order.id }}/return" class="mt-4 space-y-2">
+    <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+    <label for="reason" class="block text-sm font-medium">Retour melden -- reden</label>
+    <textarea name="reason" id="reason" required rows="2" class="w-full border rounded px-3 py-2"></textarea>
+    <button type="submit" data-testid="report-return-button"
+            class="border border-gray-300 rounded px-4 py-2 font-semibold hover:bg-gray-100">
+      Retour melden
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="bg-white rounded-lg shadow divide-y">
+  {% for line in order.lines %}
+  <div class="flex items-center justify-between p-4">
+    <div class="flex items-center gap-3">
+      {% if line.image_url %}
+      <img src="{{ line.image_url }}" alt="{{ line.title }}" class="w-14 h-14 object-contain rounded bg-gray-50">
+      {% endif %}
+      <div>
+        <p class="font-semibold">{{ line.title }}</p>
+        <p class="text-sm text-gray-500">Kleur: {{ line.color }} &middot; Aantal: {{ line.quantity }}</p>
+      </div>
+    </div>
+    <p class="font-bold">{{ "€ %.2f"|format(line.quantity * line.price_cents / 100) }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

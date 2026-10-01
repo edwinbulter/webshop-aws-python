@@ -1,0 +1,42 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "dashboard" %}
+{% block title %}Beheer -- Dashboard{% endblock %}
+{% block admin_content %}
+<h1 class="text-3xl font-extrabold mb-6">Dashboard</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="bg-white rounded-lg shadow p-4" data-testid="stat-total-orders">
+    <p class="text-sm text-gray-500">Totaal aantal bestellingen</p>
+    <p class="text-3xl font-extrabold text-[#0058a3]">{{ total_orders }}</p>
+  </div>
+  <div class="bg-white rounded-lg shadow p-4" data-testid="stat-pending-returns">
+    <p class="text-sm text-gray-500">Openstaande retouren</p>
+    <p class="text-3xl font-extrabold text-[#0058a3]">{{ pending_returns_count }}</p>
+  </div>
+  {% for label, count in status_breakdown %}
+  <div class="bg-white rounded-lg shadow p-4" data-testid="stat-status">
+    <p class="text-sm text-gray-500">{{ label }}</p>
+    <p class="text-3xl font-extrabold text-[#0058a3]">{{ count }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="text-xl font-bold mb-3">Recente bestellingen</h2>
+{% if recent_orders %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="recent-orders">
+  {% for order in recent_orders %}
+  <a href="/admin/orders/{{ order.id }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="recent-order-row">
+    <div>
+      <p class="font-mono text-sm text-gray-500">{{ order.id }}</p>
+      <p class="text-sm text-gray-500">{{ order.created_at_display }}</p>
+    </div>
+    <p class="text-sm font-semibold">{{ order.status_label }}</p>
+    <p class="font-bold">{{ order.total_display }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8">Nog geen bestellingen.</p>
+{% endif %}
+{% endblock %}

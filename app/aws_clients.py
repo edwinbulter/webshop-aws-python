@@ -31,3 +31,11 @@ def sqs_client():
         region_name=AWS_REGION,
         endpoint_url=_endpoint_url("SQS_ENDPOINT_URL"),
     )
+
+
+def cognito_idp_client():
+    return boto3.client(
+        "cognito-idp",
+        region_name=AWS_REGION,
+        endpoint_url=_endpoint_url("COGNITO_IDP_ENDPOINT_URL"),
+    )

@@ -1,0 +1,28 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "orders" %}
+{% block title %}Beheer -- Retouren{% endblock %}
+{% block admin_content %}
+<a href="/admin/orders" class="text-[#0058a3] hover:underline">&larr; Bestellingen</a>
+<h1 class="text-3xl font-extrabold mt-2 mb-6">Retouren</h1>
+
+{% if return_requests %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="admin-return-list">
+  {% for return_request in return_requests %}
+  {% set order = orders_by_id.get(return_request.order_id) %}
+  <a href="/admin/orders/{{ return_request.order_id }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="admin-return-row">
+    <div>
+      <p class="font-mono text-sm text-gray-500">{{ return_request.order_id }}</p>
+      <p class="text-sm text-gray-500">Gemeld op {{ return_request.reported_at_display }}</p>
+      <p class="text-sm text-gray-600">Reden: {{ return_request.reason }}</p>
+    </div>
+    <p class="text-sm font-semibold">{{ order.status_label if order else "" }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8" data-testid="admin-returns-empty">
+  Geen openstaande retouren.
+</p>
+{% endif %}
+{% endblock %}

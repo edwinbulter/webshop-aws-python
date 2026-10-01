@@ -1,0 +1,20 @@
+{% extends "admin/_layout.html" %}
+{% set admin_section = "customers" %}
+{% block title %}Beheer -- Klanten{% endblock %}
+{% block admin_content %}
+<h1 class="text-3xl font-extrabold mb-6">Klantenbeheer</h1>
+
+{% if customers %}
+<div class="bg-white rounded-lg shadow divide-y" data-testid="admin-customer-list">
+  {% for customer in customers %}
+  <a href="/admin/customers/{{ customer.email }}" class="flex items-center justify-between p-4 hover:bg-gray-50"
+     data-testid="admin-customer-row">
+    <p class="font-semibold">{{ customer.email }}</p>
+    <p class="text-sm text-gray-500">{{ customer.status }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-gray-500 bg-white rounded-lg shadow p-8">Geen klanten gevonden.</p>
+{% endif %}
+{% endblock %}

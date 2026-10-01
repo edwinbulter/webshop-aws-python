@@ -1,11 +1,13 @@
 import os
 
 from asgiref.wsgi import WsgiToAsgi
-from flask import Flask, render_template, request
+from flask import Flask, g, render_template, request
 from mangum import Mangum
 from werkzeug.exceptions import HTTPException
 
-from app.routes import cart, catalog, checkout
+from app.auth.session import load_current_user
+from app.repositories import single_table
+from app.routes import account, admin, auth, cart, catalog, checkout
 
 CSP = (
     "default-src 'self'; "
@@ -19,6 +21,19 @@ CSP = (
 )
 
 
+def _nav_display_name(current_user) -> str | None:
+    """First name for the nav bar's "Welkom <naam>" greeting -- falls back to
+    the local part of the email (before the @) when no profile (or no given
+    name on it) exists yet. Admins have no customer profile at all, so they
+    always get the email-derived fallback."""
+    if current_user is None:
+        return None
+    profile = None if current_user.is_admin else single_table.get_user_profile(current_user.sub)
+    if profile and profile.given_name:
+        return profile.given_name
+    return current_user.email.split("@")[0]
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ["SECRET_KEY"]
@@ -30,6 +45,15 @@ def create_app() -> Flask:
     app.register_blueprint(catalog.bp)
     app.register_blueprint(cart.bp)
     app.register_blueprint(checkout.bp)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(account.bp)
+    app.register_blueprint(admin.bp)
+
+    app.before_request(load_current_user)
+
+    @app.context_processor
+    def inject_current_user():
+        return {"current_user": g.current_user, "nav_display_name": _nav_display_name(g.current_user)}
 
     @app.after_request
     def set_security_headers(response):

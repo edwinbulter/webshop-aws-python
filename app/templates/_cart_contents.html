@@ -8,7 +8,25 @@
       <img src="{{ item.image_url }}" alt="{{ item.title }}" class="w-16 h-16 object-contain">
       <div class="flex-1">
         <p class="font-semibold">{{ item.title }}</p>
-        <p class="text-sm text-gray-500">Kleur: {{ item.color }} &middot; Aantal: {{ item.quantity }}</p>
+        <p class="text-sm text-gray-500 mb-2">Kleur: {{ item.color }}</p>
+        <div class="flex items-center gap-3">
+          <select name="quantity" aria-label="Aantal" data-testid="cart-item-quantity"
+                  hx-post="/cart/items/{{ item.product_id }}/quantity"
+                  hx-trigger="change" hx-target="#cart-contents" hx-swap="outerHTML"
+                  class="border rounded px-2 py-1 text-sm">
+            {% for n in range(min_quantity, max_quantity + 1) %}
+            <option value="{{ n }}" {{ "selected" if n == item.quantity }}>{{ n }}</option>
+            {% endfor %}
+          </select>
+          <button type="button" aria-label="Verwijderen" data-testid="remove-cart-item"
+                  hx-post="/cart/items/{{ item.product_id }}/remove"
+                  hx-target="#cart-contents" hx-swap="outerHTML"
+                  class="text-gray-400 hover:text-red-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
+              <path d="M9 3a1 1 0 0 0-1 1v1H4a1 1 0 1 0 0 2h1v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7h1a1 1 0 1 0 0-2h-4V4a1 1 0 0 0-1-1H9Zm2 6a1 1 0 1 1 2 0v8a1 1 0 1 1-2 0V9ZM8 9a1 1 0 0 1 2 0v8a1 1 0 1 1-2 0V9Zm7 0a1 1 0 1 1 2 0v8a1 1 0 1 1-2 0V9Z"/>
+            </svg>
+          </button>
+        </div>
       </div>
       <p class="font-bold">{{ item.line_total_display }}</p>
     </div>

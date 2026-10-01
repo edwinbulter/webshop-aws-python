@@ -29,6 +29,10 @@ module "dynamodb" {
   table_name = var.table_name
 }
 
+module "cognito" {
+  source = "./modules/cognito"
+}
+
 module "sqs" {
   source            = "./modules/sqs"
   queue_names       = values(local.queue_names)
@@ -94,10 +98,14 @@ module "lambda_main_app" {
   install_dependencies = true
 
   environment_variables = {
-    TABLE_NAME     = module.dynamodb.table_name
-    GSI1_NAME      = "GSI1"
-    EVENT_BUS_NAME = module.eventbridge.bus_name
-    SECRET_KEY     = data.aws_ssm_parameter.flask_secret_key.value
+    TABLE_NAME            = module.dynamodb.table_name
+    GSI1_NAME             = "GSI1"
+    GSI2_NAME             = "GSI2"
+    EVENT_BUS_NAME        = module.eventbridge.bus_name
+    SECRET_KEY            = data.aws_ssm_parameter.flask_secret_key.value
+    COGNITO_USER_POOL_ID  = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID     = module.cognito.client_id
+    COGNITO_CLIENT_SECRET = module.cognito.client_secret
   }
 
   iam_policy_statements = [
@@ -115,6 +123,19 @@ module "lambda_main_app" {
     {
       actions   = ["events:PutEvents"]
       resources = [module.eventbridge.bus_arn]
+    },
+    {
+      # User-facing Cognito calls (SignUp, InitiateAuth, ForgotPassword, ...)
+      # are authorized by the app client id/secret + the caller's own token,
+      # not by IAM -- they need no statement here at all. Only the Admin*/
+      # List* calls are IAM-gated.
+      actions = [
+        "cognito-idp:AdminListGroupsForUser",
+        "cognito-idp:AdminGetUser",
+        "cognito-idp:AdminUpdateUserAttributes",
+        "cognito-idp:ListUsers",
+      ]
+      resources = [module.cognito.user_pool_arn]
     },
   ]
 }
