@@ -670,10 +670,6 @@ opnieuw hardcoded. Zonder `TF_VAR_aws_region` (of `-var="aws_region=..."`) geëx
 `terraform apply` er expliciet om vragen in plaats van stilzwijgend de verkeerde regio te
 gebruiken.
 
-(`tf_state_bucket_name`/`tf_state_key`/`tf_state_lock_table_name` hebben defaults die al
-overeenkomen met `terraform/backend.env.example` — pas ze alleen aan met `-var` als je
-`backend.env` van de defaults hebt laten afwijken.)
-
 Dit maakt in één keer alles aan: de tabel, bus, queues, 4 Lambda's, de API, het ACM-cert +
 Route53-records voor `webshop-aws-python.kabulter.click`, én de GitHub OIDC-rol voor CI. De
 `aws_acm_certificate_validation`-stap **wacht een paar minuten** op DNS-propagatie in de
@@ -738,14 +734,20 @@ Playwright-E2E-suite tegen een echte lokale `flask run`, exact zoals hierboven b
 [Testen](#testen).
 
 **`.github/workflows/deploy.yml`** — **uitsluitend handmatig** (`workflow_dispatch`), en
-rolt alléén de 4 Lambda-functies opnieuw uit (`terraform apply -target=...` op precies die
-4 resources) — nooit de tabel, bus, queues, DNS of IAM. Er is geen AWS-sleutel in GitHub
-nodig: authenticatie loopt via **GitHub OIDC** naar de `github_oidc`-Terraform-module, die
-een rol aanmaakt met precies genoeg rechten om Lambda-code te updaten (en verder niets — een
-poging om iets anders te wijzigen zou AWS met `AccessDenied` afwijzen, ongeacht wat de
-workflow of zijn `-target`-lijst ooit zouden proberen). De `-target`-vlaggen zelf zijn
-vooral voor overzicht/blast-radius in de plan-output; de IAM-policy op de rol is de
-daadwerkelijke grens.
+rolt alléén de 4 Lambda-functies opnieuw uit. **Bevat bewust geen Terraform** — infrastructuur
+wijzigen is en blijft een lokale, menselijke `terraform apply` (zie hieronder); deze workflow
+bouwt dezelfde 4 deploy-packages als `terraform/modules/lambda/scripts/build.sh` (hetzelfde
+script, rechtstreeks aangeroepen — geen aparte/dubbele buildlogica) en roept daarna simpelweg
+`aws lambda update-function-code` + `aws lambda wait function-updated` aan per functie. Er is
+geen AWS-sleutel in GitHub nodig: authenticatie loopt via **GitHub OIDC** naar de
+`github_oidc`-Terraform-module, die een rol aanmaakt met **precies drie acties**
+(`lambda:UpdateFunctionCode`, `lambda:GetFunction`, `lambda:GetFunctionConfiguration`,
+de laatste twee alleen t.b.v. de `wait`-aanroep), gescoped op exact deze 4 Lambda-ARN's en
+niets anders — een poging om iets anders te wijzigen zou AWS met `AccessDenied` afwijzen. Zo
+scherp kan dat alleen omdat de workflow zelf geen Terraform-state hoeft te lezen/schrijven
+(geen S3/DynamoDB-backend-toegang, geen SSM/KMS-secret-toegang, geen brede read-only
+"voor-de-plan"-rechten nodig) — dat was allemaal eerder wél nodig toen deze workflow nog een
+echte `terraform apply -target=...` draaide.
 
 **Eenmalige GitHub-configuratie** (na de eerste `terraform apply` hierboven):
 
@@ -760,13 +762,41 @@ daadwerkelijke grens.
    |---|---|
    | `AWS_DEPLOY_ROLE_ARN` | output `github_deploy_role_arn` van de eerste `apply` |
    | `AWS_REGION` | zelfde waarde als `AWS_REGION` in `terraform/backend.env` |
-   | `TF_STATE_BUCKET` | zelfde waarde als `TF_STATE_BUCKET` in `terraform/backend.env` |
-   | `TF_STATE_KEY` | zelfde waarde als `TF_STATE_KEY` in `terraform/backend.env` |
-   | `TF_STATE_LOCK_TABLE` | zelfde waarde als `TF_STATE_LOCK_TABLE` in `terraform/backend.env` |
 
-   Deze vier komen dus letterlijk over uit je eigen (gitignored) `terraform/backend.env` —
-   dat bestand blijft de enige plek waar de regio en backend-namen gedefinieerd staan; deze
-   repo Variables zijn slechts de manier om diezelfde waarden ook aan CI door te geven.
+   Dat is alles — `deploy.yml` draait geen Terraform, dus het heeft geen
+   `TF_STATE_BUCKET`/`TF_STATE_KEY`/`TF_STATE_LOCK_TABLE`-variabelen nodig (die bestonden
+   hier eerder alleen om deze workflow's eigen `terraform init -backend-config=...` te
+   voeden). Een lokale `terraform apply` blijft die waarden rechtstreeks uit
+   `terraform/backend.env` lezen, zoals hieronder beschreven — dat verandert niet.
+
+   `AWS_DEPLOY_ROLE_ARN` opnieuw opzoeken (bijv. in een nieuwe terminal-sessie, lang na de
+   eerste `apply`) kan op twee manieren:
+
+   ```bash
+   # 1. Via de Terraform-state zelf (voorkeur: dit is de bron van waarheid)
+   terraform -chdir=terraform output github_deploy_role_arn
+
+   # 2. Rechtstreeks bij IAM opzoeken -- de rolnaam ligt vast in
+   #    terraform/modules/github_oidc/main.tf (aws_iam_role.deploy), dus dit werkt
+   #    ook zonder lokale Terraform-state bij de hand
+   aws iam get-role --role-name webshop-aws-python-github-deploy --query "Role.Arn" --output text
+   ```
+
+> **Bekende valkuil: "Not authorized to perform sts:AssumeRoleWithWebIdentity".** GitHub
+> rolde op 2026-04-23 ["immutable subject claims"](https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/)
+> uit: elke repo aangemaakt ná 2026-07-15 krijgt automatisch een `sub`-claim in de vorm
+> `repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:<env>` in plaats van het oudere
+> `repo:<owner>/<repo>:environment:<env>`. De trust policy in
+> `terraform/modules/github_oidc/main.tf` matcht daarom bewust met `StringLike` op de
+> **numerieke** `github_owner_id`/`github_repo_id` (`terraform/variables.tf`, met een
+> wildcard op de naam) in plaats van met `StringEquals` op de naam — dat overleeft ook een
+> toekomstige repo-/accountnaamwijziging, want de numerieke id's veranderen nooit. Zie je
+> deze foutmelding alsnog (bijv. na het klonen van dit project naar een eigen, nieuwe repo):
+> haal je eigen id's op en zet ze in `terraform/variables.tf`, of geef ze mee als
+> `-var`:
+> ```bash
+> gh api repos/<jouw-org>/<jouw-repo> --jq '{owner_id: .owner.id, repo_id: .id}'
+> ```
 
 Daarna: code-wijziging maken, mergen naar `main`, en de `deploy.yml`-workflow handmatig
 starten vanuit het Actions-tabblad ("Run workflow") om 'm live te zetten.

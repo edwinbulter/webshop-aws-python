@@ -13,8 +13,6 @@ locals {
   }
 }
 
-data "aws_caller_identity" "current" {}
-
 # Created once, out-of-band, via `aws ssm put-parameter` (see README) -- read
 # only, never managed here, so a human's local apply and CI's apply always
 # resolve the exact same live secret instead of two independently-set copies
@@ -217,14 +215,10 @@ module "custom_domain" {
 
 module "github_oidc" {
   source               = "./modules/github_oidc"
-  github_org           = var.github_org
-  github_repo          = var.github_repo
+  github_owner_id      = var.github_owner_id
+  github_repo_id       = var.github_repo_id
   github_environment   = var.github_environment
   create_oidc_provider = var.create_github_oidc_provider
-  state_bucket_arn     = "arn:aws:s3:::${var.tf_state_bucket_name}"
-  state_object_key     = var.tf_state_key
-  lock_table_arn       = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.tf_state_lock_table_name}"
-  ssm_parameter_arn    = data.aws_ssm_parameter.flask_secret_key.arn
   lambda_function_arns = [
     module.lambda_main_app.function_arn,
     module.lambda_payment_service.function_arn,

@@ -1,9 +1,11 @@
-variable "github_org" {
-  type = string
+variable "github_owner_id" {
+  type        = string
+  description = "GitHub's immutable numeric id for the repo owner (not the org/user login, which can be renamed) -- see https://api.github.com/repos/<owner>/<repo> -> .owner.id. Used in the trust policy instead of the owner name because repos created after 2026-07-15 get GitHub's \"immutable subject claims\", whose sub embeds this id rather than (or alongside, but unmatchable by name alone) the current name."
 }
 
-variable "github_repo" {
-  type = string
+variable "github_repo_id" {
+  type        = string
+  description = "GitHub's immutable numeric id for the repo itself (not its name, which can be renamed) -- see https://api.github.com/repos/<owner>/<repo> -> .id. Same reasoning as github_owner_id."
 }
 
 variable "github_environment" {
@@ -15,26 +17,6 @@ variable "create_oidc_provider" {
   type        = bool
   default     = true
   description = "AWS allows only one OIDC provider per URL per account. Set to false if this account already has a token.actions.githubusercontent.com provider from another project; its ARN is then looked up instead of created."
-}
-
-variable "state_bucket_arn" {
-  type        = string
-  description = "ARN of the S3 bucket holding Terraform state (see backend config)."
-}
-
-variable "state_object_key" {
-  type        = string
-  description = "The state object's key within the bucket, e.g. webshop-aws-python/terraform.tfstate. Must match the backend config's `key`."
-}
-
-variable "lock_table_arn" {
-  type        = string
-  description = "ARN of the DynamoDB table used for Terraform state locking."
-}
-
-variable "ssm_parameter_arn" {
-  type        = string
-  description = "ARN of the SSM SecureString parameter holding the Flask secret key, so `terraform plan`/`apply` can resolve its data source."
 }
 
 variable "lambda_function_arns" {

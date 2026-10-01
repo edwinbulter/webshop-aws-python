@@ -1,7 +1,9 @@
 name: Deploy code to AWS
 
-# Manual only, on purpose: this pipeline redeploys Lambda code to a live
-# AWS environment. Full infrastructure changes are applied by a human,
+# Manual only, on purpose: this pipeline redeploys Lambda code to a live AWS
+# environment. It never touches infrastructure -- no Terraform at all here,
+# deliberately: it calls `aws lambda update-function-code` directly on the 4
+# already-existing functions. Infrastructure changes are applied by a human,
 # locally, per README.md's "Deployment naar AWS" section.
 on:
   workflow_dispatch:
@@ -20,10 +22,6 @@ jobs:
     environment: production
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
-      TF_VAR_aws_region: ${{ vars.AWS_REGION }}
-      TF_VAR_tf_state_bucket_name: ${{ vars.TF_STATE_BUCKET }}
-      TF_VAR_tf_state_key: ${{ vars.TF_STATE_KEY }}
-      TF_VAR_tf_state_lock_table_name: ${{ vars.TF_STATE_LOCK_TABLE }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,41 +36,31 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          # Must match the Terraform version used for local applies (see
-          # README) -- a newer version here could write a state snapshot
-          # format that older local Terraform can't read back. Update this
-          # together with any local upgrade, never alone.
-          terraform_version: "1.5.7"
-
-      - name: Terraform init
-        working-directory: terraform
+      # Reuses the exact same build script Terraform's own lambda module calls
+      # (terraform/modules/lambda/scripts/build.sh) -- one build process,
+      # whether a human runs `terraform apply` locally or this workflow
+      # deploys code-only. install_dependencies=true bundles
+      # flask/mangum/asgiref/boto3/botocore, which aren't present in the
+      # Lambda runtime.
+      - name: Build and deploy webshop-main-app
         run: |
-          terraform init \
-            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
-            -backend-config="key=${{ vars.TF_STATE_KEY }}" \
-            -backend-config="region=${{ vars.AWS_REGION }}" \
-            -backend-config="dynamodb_table=${{ vars.TF_STATE_LOCK_TABLE }}"
+          bash terraform/modules/lambda/scripts/build.sh \
+            "$RUNNER_TEMP/webshop-main-app" "$GITHUB_WORKSPACE" true app
+          (cd "$RUNNER_TEMP/webshop-main-app" && zip -rq "$RUNNER_TEMP/webshop-main-app.zip" .)
+          aws lambda update-function-code --function-name webshop-main-app \
+            --zip-file "fileb://$RUNNER_TEMP/webshop-main-app.zip" --no-cli-pager
+          aws lambda wait function-updated --function-name webshop-main-app
 
-      # Scoped to exactly the 4 Lambda function resources: this keeps
-      # unrelated infra (DynamoDB/EventBridge/SQS/ACM/Route53/IAM) out of the
-      # plan graph, for blast-radius and plan-output hygiene. That said, the
-      # -target list is NOT the security boundary -- the least-privilege IAM
-      # policy on the assumed role (terraform/modules/github_oidc) is: it
-      # grants only lambda:UpdateFunctionCode/GetFunction/TagResource/
-      # UntagResource as write actions, so AWS itself would reject any
-      # broader attempt with AccessDenied regardless of what this workflow
-      # or its -target flags ever try to do.
-      #
-      # The Lambda code diff always shows as "(known after apply)" -- that's
-      # expected (archive_file depends on the build step), not a bug.
-      - name: Terraform apply (Lambda code only)
-        working-directory: terraform
+      # The 3 consumers only need `app` + `consumers` copied in (no
+      # install_dependencies): they use nothing but boto3, which Lambda's
+      # runtime already provides.
+      - name: Build and deploy the 3 consumer Lambdas
         run: |
-          terraform apply -auto-approve \
-            -target=module.lambda_main_app.aws_lambda_function.this \
-            -target=module.lambda_payment_service.aws_lambda_function.this \
-            -target=module.lambda_inventory_service.aws_lambda_function.this \
-            -target=module.lambda_notification_service.aws_lambda_function.this
+          for name in webshop-payment-service webshop-inventory-service webshop-notification-service; do
+            bash terraform/modules/lambda/scripts/build.sh \
+              "$RUNNER_TEMP/$name" "$GITHUB_WORKSPACE" false app consumers
+            (cd "$RUNNER_TEMP/$name" && zip -rq "$RUNNER_TEMP/$name.zip" .)
+            aws lambda update-function-code --function-name "$name" \
+              --zip-file "fileb://$RUNNER_TEMP/$name.zip" --no-cli-pager
+            aws lambda wait function-updated --function-name "$name"
+          done

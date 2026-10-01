@@ -30,19 +30,37 @@ resource "aws_iam_role" "deploy" {
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:environment:${var.github_environment}"
+        }
+        # StringLike (not StringEquals) on purpose, pinned to the *numeric*
+        # owner/repo IDs rather than their names: repos created on GitHub
+        # after 2026-07-15 get "immutable subject claims" by default, whose
+        # sub is "repo:<owner_name>@<owner_id>/<repo_name>@<repo_id>:environment:<env>"
+        # (see https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/).
+        # Matching StringEquals against the plain "repo:org/repo:environment:..."
+        # format fails outright against that token with a bare AccessDenied on
+        # sts:AssumeRoleWithWebIdentity -- there is no partial-match fallback.
+        # Wildcarding the *names* and pinning the *ids* is also strictly safer
+        # than matching on names: it survives a future org/repo rename (the id
+        # never changes) and can't be satisfied by an attacker who deletes this
+        # repo and recreates one with the same name (a fresh repo gets a new id).
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:*@${var.github_owner_id}/*@${var.github_repo_id}:environment:${var.github_environment}"
         }
       }
     }]
   })
 }
 
-# Two enforcement layers exist for "this pipeline may only redeploy Lambda
-# code": the workflow's own `-target` flags (blast-radius/plan-output
-# hygiene -- keeps unrelated resources out of the graph) and this policy
-# (the actual hard boundary -- AWS rejects anything beyond what's listed
-# here with AccessDenied, regardless of what the workflow or its target
-# list ever try to do).
+# Deliberately the ONLY statement: this pipeline calls `aws lambda
+# update-function-code` directly (no Terraform in deploy.yml at all -- that's
+# a human, local-only action per README's "Deployment naar AWS"), so this
+# role needs nothing beyond updating code on exactly these 4 functions and
+# waiting for that update to finish. No state-bucket/lock-table access, no
+# broad read-only "for plan" grant, no secrets access: all of that existed
+# only because deploy.yml used to run a real `terraform apply`, which needed
+# to refresh the whole resource graph even though it only ever touched these
+# 4 functions. AWS rejects anything beyond what's listed here with
+# AccessDenied, regardless of what the workflow ever tries to do.
 resource "aws_iam_role_policy" "deploy" {
   name = "webshop-aws-python-github-deploy"
   role = aws_iam_role.deploy.id
@@ -51,71 +69,12 @@ resource "aws_iam_role_policy" "deploy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "TerraformStateObject"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
-        Resource = "${var.state_bucket_arn}/${var.state_object_key}"
-      },
-      {
-        Sid      = "TerraformStateBucketList"
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket"]
-        Resource = var.state_bucket_arn
-      },
-      {
-        Sid      = "TerraformStateLock"
-        Effect   = "Allow"
-        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem"]
-        Resource = var.lock_table_arn
-      },
-      {
-        Sid    = "ReadOnlyForPlan"
+        Sid    = "DeployLambdaCodeOnly"
         Effect = "Allow"
-        Action = [
-          "route53:GetHostedZone",
-          "route53:ListResourceRecordSets",
-          "acm:DescribeCertificate",
-          "acm:ListCertificates",
-          "cognito-idp:DescribeUserPool",
-          "cognito-idp:DescribeUserPoolClient",
-          "cognito-idp:ListGroups",
-          "cognito-idp:ListTagsForResource",
-          "dynamodb:DescribeTable",
-          "sqs:GetQueueAttributes",
-          "sqs:GetQueueUrl",
-          "events:DescribeEventBus",
-          "events:DescribeRule",
-          "events:ListTargetsByRule",
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:ListRolePolicies",
-          "iam:ListAttachedRolePolicies",
-          "apigateway:GET",
-          "logs:DescribeLogGroups",
-          "lambda:GetFunction",
-          "lambda:GetFunctionConfiguration",
-          "lambda:ListVersionsByFunction",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid      = "SecretLookup"
-        Effect   = "Allow"
-        Action   = ["ssm:GetParameter"]
-        Resource = var.ssm_parameter_arn
-      },
-      {
-        # The default alias/aws/ssm KMS key has no fixed ARN to scope to
-        # without an extra lookup; acceptable at this project's scale.
-        Sid      = "SecretDecrypt"
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = "*"
-      },
-      {
-        Sid      = "DeployLambdaCodeOnly"
-        Effect   = "Allow"
-        Action   = ["lambda:UpdateFunctionCode", "lambda:TagResource", "lambda:UntagResource"]
+        # GetFunction/GetFunctionConfiguration are for `aws lambda wait
+        # function-updated` after each update-function-code call, not for
+        # reading anything -- the deploy step doesn't branch on the response.
+        Action   = ["lambda:UpdateFunctionCode", "lambda:GetFunction", "lambda:GetFunctionConfiguration"]
         Resource = var.lambda_function_arns
       },
     ]
