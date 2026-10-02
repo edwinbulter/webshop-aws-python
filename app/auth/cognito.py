@@ -18,6 +18,14 @@ def _user_pool_id() -> str:
     return os.environ["COGNITO_USER_POOL_ID"]
 
 
+def is_local_mode() -> bool:
+    """True when talking to moto, not real AWS -- same signal
+    app/aws_clients.py's endpoint_url helpers use. Used only to adjust
+    dev-mode messaging/UX (see app/routes/auth.py), never to change actual
+    auth behavior."""
+    return bool(os.environ.get("COGNITO_IDP_ENDPOINT_URL"))
+
+
 def secret_hash(username: str) -> str:
     """Required on every user-level Cognito call for a confidential (secret-bearing)
     app client. Note .digest() + base64 -- not .hexdigest() -- a common mistake."""

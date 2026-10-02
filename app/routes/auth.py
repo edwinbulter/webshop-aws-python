@@ -62,34 +62,59 @@ def register_submit():
         flash(_cognito_error_message(error), "error")
         return render_template("auth/register.html", email=email), 400
 
-    flash("Account aangemaakt. Check je e-mail voor de verificatiecode.", "success")
+    if cognito.is_local_mode():
+        flash(
+            "Account aangemaakt. Lokale ontwikkelomgeving: er wordt geen echte e-mail "
+            "verstuurd, vul een willekeurige 6-cijferige code in.",
+            "success",
+        )
+    else:
+        flash("Account aangemaakt. Check je e-mail voor de verificatiecode.", "success")
     return redirect(url_for("auth.confirm", email=email))
 
 
 @bp.get("/confirm")
 def confirm():
-    return render_template("auth/confirm.html", email=request.args.get("email", ""))
+    return render_template(
+        "auth/confirm.html",
+        email=request.args.get("email", ""),
+        local_mode=cognito.is_local_mode(),
+    )
 
 
 @bp.post("/confirm")
 def confirm_submit():
     email = request.form.get("email", "").strip().lower()
     action = request.form.get("action", "confirm")
+    local_mode = cognito.is_local_mode()
 
     if action == "resend":
         try:
             cognito.resend_confirmation_code(email)
             flash("Nieuwe verificatiecode verstuurd.", "success")
         except ClientError as error:
-            flash(_cognito_error_message(error), "error")
-        return render_template("auth/confirm.html", email=email)
+            # moto[server] has no ResendConfirmationCode implementation at all --
+            # it crashes server-side with a raw NotImplementedError, which crosses
+            # the real HTTP boundary to moto's ThreadedMotoServer as a generic
+            # HTTP 500 (boto3 then raises this as a ClientError with Code="500",
+            # not any real Cognito error code). Verified correct against real AWS.
+            if local_mode and error.response["Error"]["Code"] == "500":
+                flash(
+                    "Lokale ontwikkelomgeving: hernieuwde verificatiecodes worden niet "
+                    "ondersteund door de moto-mock -- vul een willekeurige 6-cijferige "
+                    "code in.",
+                    "error",
+                )
+            else:
+                flash(_cognito_error_message(error), "error")
+        return render_template("auth/confirm.html", email=email, local_mode=local_mode)
 
     code = request.form.get("code", "").strip()
     try:
         cognito.confirm_sign_up(email, code)
     except ClientError as error:
         flash(_cognito_error_message(error), "error")
-        return render_template("auth/confirm.html", email=email), 400
+        return render_template("auth/confirm.html", email=email, local_mode=local_mode), 400
 
     flash("Account bevestigd. Je kan nu inloggen.", "success")
     return redirect(url_for("auth.login"))

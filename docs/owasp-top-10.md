@@ -50,6 +50,11 @@ order namens iemand anders.
   valideert daarom een per-sessie CSRF-token uit het `SESSION#<id>`-item
   (`app/auth/session.py::verify_csrf_token`, `hmac.compare_digest` om een timing-aanval op
   de vergelijking zelf uit te sluiten).
+- (Server-Side Request Forgery, van oudsher een apart OWASP-nummer, valt in de 2025-editie
+  onder deze bredere categorie — niet onder A10 zoals een eerdere versie van dit document
+  abusievelijk vermeldde. Het risico is hier laag: de enige externe URL's in de applicatie
+  zijn de vaste, hotlinked IKEA-productafbeeldingen uit de seed-data — de server doet zelf
+  nooit een uitgaand verzoek naar een door de gebruiker opgegeven URL.)
 
 ## A02 — Security Misconfiguration
 
@@ -288,7 +293,3 @@ vastlopen.
   dat als bericht 3 van de 10 in een batch corrupt is, alleen dát bericht wordt
   teruggemeld voor retry — de andere negen worden gewoon succesvol verwerkt in plaats van
   ook opnieuw aangeboden te worden.
-- (Server-Side Request Forgery, van oudsher een apart OWASP-nummer en nu onderdeel van deze
-  bredere categorie, is hier laag risico: de enige externe URL's in de applicatie zijn de
-  vaste, hotlinked IKEA-productafbeeldingen uit de seed-data — de server doet zelf nooit een
-  uitgaand verzoek naar een door de gebruiker opgegeven URL.)

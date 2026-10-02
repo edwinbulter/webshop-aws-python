@@ -1,5 +1,3 @@
-import pytest
-
 EMAIL = "routes-test@example.com"
 PASSWORD = "StrongPassw0rd!"
 
@@ -22,6 +20,28 @@ def test_register_success_redirects_to_confirm(client, dynamodb_table):
     )
     assert response.status_code == 302
     assert "/confirm" in response.headers["Location"]
+
+
+def test_register_success_flash_mentions_local_dev(client, dynamodb_table):
+    # The integration suite always runs against moto (see aws_endpoints in
+    # tests/conftest.py), so COGNITO_IDP_ENDPOINT_URL is always set here --
+    # cognito.is_local_mode() is true, locking in the local-dev wording.
+    response = client.post(
+        "/register",
+        data={"email": "localflash@example.com", "password": PASSWORD, "password_confirm": PASSWORD},
+        follow_redirects=True,
+    )
+    assert "geen echte e-mail verstuurd" in response.get_data(as_text=True)
+
+
+def test_confirm_page_shows_local_mode_banner_and_prefilled_code(client, dynamodb_table):
+    email = "localbanner@example.com"
+    client.post("/register", data={"email": email, "password": PASSWORD, "password_confirm": PASSWORD})
+
+    html = client.get(f"/confirm?email={email}").get_data(as_text=True)
+    assert 'data-testid="local-mode-banner"' in html
+    assert 'id="code"' in html
+    assert 'value="123456"' in html
 
 
 def test_register_rejects_mismatched_passwords(client, dynamodb_table):
@@ -53,22 +73,18 @@ def test_confirm_success_redirects_to_login(client, dynamodb_table):
     assert "/login" in response.headers["Location"]
 
 
-@pytest.mark.xfail(
-    reason=(
-        "moto[server]==5.0.24 doesn't implement ResendConfirmationCode at all "
-        "(NotImplementedError, not a botocore ClientError) -- verified manually against "
-        "real AWS Cognito that app.auth.cognito.resend_confirmation_code works correctly "
-        "there. Remove this xfail once a moto upgrade adds support."
-    ),
-    strict=True,
-)
-def test_confirm_resend_shows_success_message(client, dynamodb_table):
+def test_confirm_resend_shows_local_mode_message_instead_of_crashing(client, dynamodb_table):
+    # moto[server]==5.0.24 doesn't implement ResendConfirmationCode at all
+    # (NotImplementedError, not a botocore ClientError) -- verified manually
+    # against real AWS Cognito that app.auth.cognito.resend_confirmation_code
+    # works correctly there. The route must catch this and degrade gracefully
+    # (a friendly local-dev message) instead of a 500.
     email = "resend@example.com"
     client.post("/register", data={"email": email, "password": PASSWORD, "password_confirm": PASSWORD})
 
     response = client.post("/confirm", data={"email": email, "action": "resend"})
     assert response.status_code == 200
-    assert "opnieuw verstuurd" in response.get_data(as_text=True)
+    assert "niet ondersteund door de moto-mock" in response.get_data(as_text=True)
 
 
 def test_login_success_sets_session_cookie_and_redirects(client, dynamodb_table):

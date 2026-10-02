@@ -6,12 +6,20 @@
   <p class="text-gray-600 mb-4">
     We hebben een verificatiecode gestuurd naar <strong>{{ email }}</strong>.
   </p>
+  {% if local_mode %}
+  <div class="mb-4 rounded p-3 text-sm bg-green-50 border border-green-200 text-green-800"
+       data-testid="local-mode-banner">
+    Lokale ontwikkelomgeving: er wordt geen echte e-mail verstuurd. Vul een willekeurige
+    6-cijferige code in (al ingevuld hieronder) om te bevestigen.
+  </div>
+  {% endif %}
   <form method="post" action="/confirm" class="space-y-3">
     <input type="hidden" name="email" value="{{ email }}">
     <input type="hidden" name="action" value="confirm">
     <div>
       <label for="code" class="block text-sm font-medium mb-1">Verificatiecode</label>
       <input type="text" name="code" id="code" required inputmode="numeric"
+             value="{{ '123456' if local_mode else '' }}"
              class="w-full border rounded px-3 py-2">
     </div>
     <button type="submit" class="w-full bg-[#0058a3] text-white font-semibold rounded py-2 hover:bg-[#004a87]">

@@ -448,7 +448,49 @@ gelockte dependency-versies.
 ```bash
 uv sync
 uv run playwright install chromium
+```
 
+**Kortere weg:** `./scripts/restart_local_dev.sh` doet alle stappen van de handmatige
+variant hieronder in één keer — stopt eerst een eventueel nog draaiende
+`moto.server`/`flask run` van een vorige sessie, start een verse moto-server, bootstrapt
+tabel/queues/Cognito-pool/demo-accounts, seedt de producten, en start `flask run`
+(Ctrl-C stopt alles, inclusief de moto-server). Handig na een afgebroken of halfgelukte
+vorige poging, of gewoon als dagelijkse opstartknop:
+
+```bash
+./scripts/restart_local_dev.sh
+```
+
+`bootstrap_local_infra` maakt in die lokale pool ook meteen **dezelfde twee
+demo-accounts** aan als de live demo (zie
+[Demo-inloggegevens](#wat-doet-deze-applicatie) hierboven: `admin@demo.nl`/`klant@demo.nl`,
+wachtwoord `Demo1234!`) — inloggen werkt dus lokaal direct, zonder eerst zelf te hoeven
+registreren. Let op: dit zijn **twee volledig losse Cognito-pools** (de lokale moto-pool
+hierboven versus de echte, in AWS gedeployde pool) die toevallig dezelfde
+inloggegevens delen — een account aanmaken/wijzigen in de ene pool heeft geen enkel effect
+op de andere. Wil je liever een eigen test-account? Registreer via `/register` → `/confirm`
+→ `/login`. **Lokaal wordt nooit een echte e-mail verstuurd** — moto kan dat niet (het is een
+gemockte AWS-service) — en `/confirm` laat dat ook zien: in lokale modus toont die pagina een
+groene banner die dit uitlegt, en staat het codeveld al ingevuld met `123456` (moto
+accepteert **elke** 6-cijferige code bij `ConfirmSignUp` — alleen tegen echte AWS moet het de
+code uit de verificatiemail zijn). De "Code opnieuw versturen"-knop werkt lokaal bewust niet
+(`moto[server]==5.0.24` implementeert `ResendConfirmationCode` niet — geverifieerd dat dit op
+echte AWS wél gewoon werkt) en toont in plaats daarvan dezelfde uitleg, in plaats van een
+crash. Geef een eigen account zo nodig lokaal admin-rechten:
+
+```bash
+aws cognito-idp admin-add-user-to-group --endpoint-url http://localhost:5001 \
+  --user-pool-id "$COGNITO_USER_POOL_ID" --username jouw@mailadres.nl \
+  --group-name Admins --region eu-west-1
+```
+
+Log daarna opnieuw in — groepslidmaatschap wordt bij elke login opnieuw opgehaald (zie
+[Gebruikersrollen & authenticatie](#gebruikersrollen--authenticatie)).
+
+**Handmatige variant** (wat `restart_local_dev.sh` hierboven voor je automatiseert — handig
+als je liever zelf, stap voor stap, de onderdelen opstart of begrijpt wat er precies gebeurt):
+
+```bash
 export SECRET_KEY="dev-secret-key"
 export FLASK_APP="app.main:app"
 export FLASK_DEBUG=1   # niet FLASK_ENV -- Flask 3.x leest die niet meer; FLASK_DEBUG=1
@@ -494,34 +536,6 @@ uv run flask run --port 5050
 > pagina, die eruitziet als een echte applicatiefout maar dat niet is. Vandaar `--port 5050`
 > hierboven (of zet AirPlay Receiver uit via Systeeminstellingen → Algemeen → AirDrop en
 > Handoff) — maar niet van die instelling afhankelijk zijn is simpeler.
-
-**Kortere weg:** `./scripts/restart_local_dev.sh` doet alle stappen hierboven in één
-keer — stopt eerst een eventueel nog draaiende `moto.server`/`flask run` van een vorige
-sessie, start een verse moto-server, bootstrapt tabel/queues/Cognito-pool/demo-accounts,
-seedt de producten, en start `flask run` (Ctrl-C stopt alles, inclusief de moto-server).
-Handig na een afgebroken of halfgelukte vorige poging, of gewoon als dagelijkse
-opstartknop.
-
-`bootstrap_local_infra` maakt in die lokale pool ook meteen **dezelfde twee
-demo-accounts** aan als de live demo (zie
-[Demo-inloggegevens](#wat-doet-deze-applicatie) hierboven: `admin@demo.nl`/`klant@demo.nl`,
-wachtwoord `Demo1234!`) — inloggen werkt dus lokaal direct, zonder eerst zelf te hoeven
-registreren. Let op: dit zijn **twee volledig losse Cognito-pools** (de lokale moto-pool
-hierboven versus de echte, in AWS gedeployde pool) die toevallig dezelfde
-inloggegevens delen — een account aanmaken/wijzigen in de ene pool heeft geen enkel effect
-op de andere. Wil je liever een eigen test-account? Registreer via `/register` → `/confirm`
-(moto accepteert **elke** 6-cijferige code, bijv. `123456` — alleen tegen echte AWS moet het
-de code uit de verificatiemail zijn) → `/login`, en geef dat account zo nodig lokaal
-admin-rechten:
-
-```bash
-aws cognito-idp admin-add-user-to-group --endpoint-url http://localhost:5001 \
-  --user-pool-id "$COGNITO_USER_POOL_ID" --username jouw@mailadres.nl \
-  --group-name Admins --region eu-west-1
-```
-
-Log daarna opnieuw in — groepslidmaatschap wordt bij elke login opnieuw opgehaald (zie
-[Gebruikersrollen & authenticatie](#gebruikersrollen--authenticatie)).
 
 > **Let op:** gebruik `python -m scripts.<naam>`, niet `python scripts/<naam>.py`. Bij een
 > direct scriptpad zet Python de map van het script zelf (`scripts/`) vooraan in `sys.path`
@@ -854,9 +868,11 @@ model van toepassing is.
 
 - Geen echte betaalverwerking of e-mailverzending — de drie consumer-Lambda's zijn bewuste
   PoC-stubs die loggen en een statusveld op de order bijwerken.
-- **Geen automatische voorraadverlaging bij checkout** — admin-voorraadbeheer is in deze
-  fase uitsluitend een handmatig bij te werken scherm (zie
-  [Admin-backoffice](#admin-backoffice) voor de reden).
+- **Geen automatische voorraadverlaging bij checkout** — voorraad wordt pas verlaagd op het
+  moment dat een admin een order als "Verzonden" markeert (en dat wordt geblokkeerd als de
+  voorraad ontoereikend is), niet bij het plaatsen van de order zelf. **Aanvullen** van
+  voorraad blijft uitsluitend een handmatig bij te werken scherm (zie
+  [Admin-backoffice](#admin-backoffice) voor de reden achter beide keuzes).
 - **MFA staat uit** op de Cognito User Pool — een bewuste, benoemde PoC-scope-keuze.
 - **Geen refresh-token-opslag** — sessies zijn vast 8 uur geldig, geen stille verlenging
   (zie [Gebruikersrollen & authenticatie](#gebruikersrollen--authenticatie)).
