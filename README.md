@@ -56,13 +56,14 @@ overeen met de echte IKEA-productnamen, om hergebruik van handelsmerken te vermi
 7. [Event-driven architectuur: waarom EventBridge + SQS in plaats van SNS](#event-driven-architectuur-waarom-eventbridge--sqs-in-plaats-van-sns)
 8. [Orderstatus-levenscyclus](#orderstatus-levenscyclus)
 9. [OWASP Top 10 (2025) — beveiligingsmaatregelen](#owasp-top-10-2025--beveiligingsmaatregelen)
-10. [Lokaal draaien](#lokaal-draaien)
-11. [Testen](#testen)
-12. [Infrastructure as Code (Terraform)](#infrastructure-as-code-terraform)
-13. [Deployment naar AWS](#deployment-naar-aws)
-14. [GitHub Actions (CI/CD)](#github-actions-cicd)
-15. [Verwachte AWS-kosten (± 100 API-calls/dag)](#verwachte-aws-kosten--100-api-callsdag)
-16. [Scope en beperkingen](#scope-en-beperkingen)
+10. [AVG en Cyberbeveiligingswet (NIS2)](#avg-en-cyberbeveiligingswet-nis2)
+11. [Lokaal draaien](#lokaal-draaien)
+12. [Testen](#testen)
+13. [Infrastructure as Code (Terraform)](#infrastructure-as-code-terraform)
+14. [Deployment naar AWS](#deployment-naar-aws)
+15. [GitHub Actions (CI/CD)](#github-actions-cicd)
+16. [Verwachte AWS-kosten (± 100 API-calls/dag)](#verwachte-aws-kosten--100-api-callsdag)
+17. [Scope en beperkingen](#scope-en-beperkingen)
 
 ## Architectuuroverzicht
 
@@ -138,7 +139,8 @@ webshop-aws-python/
 │   ├── seed_products.py          # laadt products.json in een al-bestaande tabel (lokaal óf echt AWS)
 │   ├── run_local_consumers.py    # lokaal (moto) alleen: pollt de queues i.p.v. een Lambda-trigger
 │   ├── restart_local_dev.sh      # stopt/herstart de volledige lokale dev-stack in één keer
-│   └── bootstrap_terraform_backend.sh  # eenmalige, idempotente backend-setup (S3 + DynamoDB)
+│   ├── bootstrap_terraform_backend.sh  # eenmalige, idempotente backend-setup (S3 + DynamoDB)
+│   └── prepare_terraform_apply.sh      # per-shell voorbereiding op `terraform plan`/`apply` (sourcen!)
 └── tests/
     ├── conftest.py              # ThreadedMotoServer + tabel/bus/queues bootstrap
     ├── integration/             # pytest + moto
@@ -244,6 +246,8 @@ gast-winkelwagen leunde tot nu toe alleen op `SameSite=Lax`).
 | `GET /account/orders/<id>` | Orderdetail — **404, niet bestaand of niet van jou is niet te onderscheiden** |
 | `POST /account/orders/<id>/cancel` | Annuleren — alleen mogelijk bij status "In afwachting van betaling"/"In behandeling" |
 | `POST /account/orders/<id>/return` | Retour melden — alleen bij "Verzonden"/"Afgeleverd", binnen `RETURN_WINDOW_DAYS` (standaard 14 dagen), met verplichte reden |
+| `GET /account/export` | AVG-dataportabiliteit (Art. 20) — profiel + volledige bestelgeschiedenis als downloadbaar JSON-bestand |
+| `GET/POST /account/delete` | AVG-recht op vergetelheid (Art. 17) — verwijdert na herbevestiging van het wachtwoord het Cognito-account en profiel; bestellingen blijven bewust bewaard (zie [AVG en Cyberbeveiligingswet (NIS2)](#avg-en-cyberbeveiligingswet-nis2)) |
 
 Elke eligibility-check (annuleerbaar? binnen de retourtermijn?) wordt **server-side
 herverifieerd** op de `POST` zelf, met een `ConditionExpression`-guard op de huidige status
@@ -436,6 +440,22 @@ maken geen deel uit van de statusmachine hierboven en kunnen dus nooit een order
 | A08 | Software/Data Integrity Failures | Elk `OrderPlaced`-event bevat een `schema_version`-veld; consumers parsen uitsluitend met `json.loads` (nooit `pickle`/`eval`) en rapporteren onleesbare berichten als batch item failure in plaats van te crashen |
 | A09 | Logging & Alerting Failures | Gestructureerde JSON-logging in de Flask-app en alle consumer-Lambda's; nooit PII of betaalgegevens in logs; elke Lambda's CloudWatch Log Group heeft een expliciete `retention_in_days` |
 | A10 | Mishandling of Exceptional Conditions | Onverwachte fouten geven altijd een generieke Nederlandstalige foutmelding terug (nooit een stacktrace) — een aparte fragment-variant voor HTMX-requests en een volledige pagina voor normale requests; SQS event-source mappings gebruiken `function_response_types = ["ReportBatchItemFailures"]` zodat één kapot bericht niet de hele batch blokkeert |
+
+## AVG en Cyberbeveiligingswet (NIS2)
+
+> Deze tabel is een beknopt overzicht. Voor de volledige analyse — per AVG-artikel wat het
+> vereist en hoe dit project daaraan voldoet (of niet) — zie
+> [`docs/gdpr-nis2-compliance.md`](docs/gdpr-nis2-compliance.md).
+
+| Onderwerp | Status |
+|---|---|
+| Gegevensinventarisatie | E-mail, naam, aflever-/factuuradres, bestelgeschiedenis — alles in `eu-central-1` (EU), geen doorgifte buiten de EU |
+| Grondslag | Uitvoering van de overeenkomst; geen marketingverwerking (er bestaat geen echte e-maildienst, zie Scope en beperkingen) |
+| Rechten van betrokkenen | Inzage, rectificatie, verwijdering (`/account/delete`) en data-export (`/account/export`) allemaal aanwezig |
+| Bewaartermijnen | Sessies verlopen automatisch (TTL); verwijdering is mogelijk **op aanvraag**, maar er bestaat nog **geen automatische** bewaartermijn voor profielen/bestellingen |
+| Transparantie | **Geen privacyverklaring aanwezig** |
+| Datalekken | **Geen gedocumenteerd meldproces** (AVG vereist melding binnen 72 uur) |
+| Cyberbeveiligingswet (NIS2) | **Niet van toepassing** — persoonlijk, niet-commercieel portfolioproject, geen geregistreerde onderneming in een aangewezen sector |
 
 ## Lokaal draaien
 
@@ -684,6 +704,22 @@ opnieuw hardcoded. Zonder `TF_VAR_aws_region` (of `-var="aws_region=..."`) geëx
 `terraform apply` er expliciet om vragen in plaats van stilzwijgend de verkeerde regio te
 gebruiken.
 
+**Latere `apply`'s, in een nieuwe shell:** `terraform init` is lokale state (`.terraform/`,
+niet gecommit) en `TF_VAR_aws_region` is een environment-variabele — beide zijn dus na elke
+nieuwe shell-sessie opnieuw nodig, niet alleen bij de allereerste keer. In plaats van elke
+keer handmatig `source terraform/backend.env`, `export TF_VAR_aws_region=...`, `cd terraform`
+en `terraform init -backend-config=...` te herhalen, doet
+`scripts/prepare_terraform_apply.sh` dat in één keer:
+```bash
+source scripts/prepare_terraform_apply.sh
+terraform plan
+```
+Moet **gesourced** worden (niet uitgevoerd als `./scripts/prepare_terraform_apply.sh`) — alleen
+zo kunnen de `cd` en `export` erin in je eigen shell blijven hangen in plaats van te verdwijnen
+met het child-process waarin een los uitgevoerd script draait (zelfde reden als
+`eval "$(...)"` bij `bootstrap_local_infra.py`, zie [Lokaal draaien](#lokaal-draaien)). Het
+script voert zelf nooit `plan`/`apply` uit — dat blijft een bewuste, handmatige stap.
+
 Dit maakt in één keer alles aan: de tabel, bus, queues, 4 Lambda's, de API, het ACM-cert +
 Route53-records voor `webshop-aws-python.kabulter.click`, én de GitHub OIDC-rol voor CI. De
 `aws_acm_certificate_validation`-stap **wacht een paar minuten** op DNS-propagatie in de
@@ -880,3 +916,8 @@ model van toepassing is.
   niet bij een meerdere-omgevingen-opzet.
 - Productfoto's zijn hotlinked vanaf `ikea.com`; als IKEA die URL's wijzigt, breken de
   afbeeldingen in deze demo (bewuste trade-off, zie de disclaimer bovenaan).
+- **Geen privacyverklaring, geen gedocumenteerd datalekproces, en geen automatische
+  bewaartermijn voor profielen/bestellingen** (verwijdering op aanvraag en data-export zijn
+  inmiddels wél aanwezig, zie `/account/delete`/`/account/export`) — benoemde hiaten, niet
+  opgelost in deze fase (zie [AVG en Cyberbeveiligingswet (NIS2)](#avg-en-cyberbeveiligingswet-nis2)
+  voor de volledige analyse en de reden waarom dit niet stilzwijgend is opgelost).

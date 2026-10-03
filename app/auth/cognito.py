@@ -106,6 +106,15 @@ def admin_list_groups(email: str) -> list[str]:
     return [group["GroupName"] for group in response["Groups"]]
 
 
+def admin_delete_user(email: str) -> None:
+    """AVG Art. 17 (right to erasure) -- permanently removes the Cognito
+    account. IAM-authorized (AdminDeleteUser), not token-authorized: the
+    caller re-verifies the password via login() first (see
+    app/routes/account.py::delete_account), this call itself does the
+    irreversible deletion."""
+    cognito_idp_client().admin_delete_user(UserPoolId=_user_pool_id(), Username=email)
+
+
 def _summarize_user(attributes: dict, username: str, status: str, enabled: bool) -> dict:
     return {
         "sub": attributes.get("sub", username),

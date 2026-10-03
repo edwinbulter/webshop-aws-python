@@ -98,4 +98,22 @@
     Opslaan
   </button>
 </form>
+
+<div class="bg-white rounded-lg shadow p-6 mt-6">
+  <h2 class="font-bold text-lg mb-1">Mijn gegevens</h2>
+  <p class="text-sm text-gray-500 mb-4">
+    Rechten onder de AVG: bekijk hieronder je eigen gegevens in een downloadbaar bestand, of
+    verwijder je account volledig.
+  </p>
+  <div class="flex flex-wrap gap-3">
+    <a href="/account/export" data-testid="export-data-link"
+       class="border border-gray-300 rounded px-4 py-2 font-semibold hover:bg-gray-100">
+      Exporteer mijn gegevens
+    </a>
+    <a href="/account/delete" data-testid="delete-account-link"
+       class="border border-red-300 text-red-700 rounded px-4 py-2 font-semibold hover:bg-red-50">
+      Account verwijderen
+    </a>
+  </div>
+</div>
 {% endblock %}

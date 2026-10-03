@@ -127,10 +127,13 @@ module "lambda_main_app" {
       # are authorized by the app client id/secret + the caller's own token,
       # not by IAM -- they need no statement here at all. Only the Admin*/
       # List* calls are IAM-gated.
+      # AdminDeleteUser backs the account-deletion route (AVG Art. 17) --
+      # see app/routes/account.py::delete_account.
       actions = [
         "cognito-idp:AdminListGroupsForUser",
         "cognito-idp:AdminGetUser",
         "cognito-idp:AdminUpdateUserAttributes",
+        "cognito-idp:AdminDeleteUser",
         "cognito-idp:ListUsers",
       ]
       resources = [module.cognito.user_pool_arn]

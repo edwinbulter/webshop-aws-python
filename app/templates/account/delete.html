@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Account verwijderen{% endblock %}
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+  <h1 class="text-2xl font-extrabold mb-2 text-red-700">Account verwijderen</h1>
+  <p class="text-gray-600 mb-4">
+    Dit verwijdert je inloggegevens en je profiel (naam en adresgegevens)
+    <strong>permanent en onomkeerbaar</strong>. Je bestelgeschiedenis blijft als
+    administratief record bewaard (wettelijke bewaarplicht), maar is na verwijdering niet
+    meer aan een account gekoppeld dat je kan inloggen.
+  </p>
+  <form method="post" action="/account/delete" class="space-y-3">
+    <input type="hidden" name="csrf_token" value="{{ current_user.csrf_token }}">
+    <div>
+      <label for="password" class="block text-sm font-medium mb-1">
+        Bevestig je wachtwoord om door te gaan
+      </label>
+      <input type="password" name="password" id="password" required
+             class="w-full border rounded px-3 py-2">
+    </div>
+    <button type="submit" data-testid="confirm-delete-account-button"
+            class="w-full bg-red-600 text-white font-semibold rounded py-2 hover:bg-red-700">
+      Account definitief verwijderen
+    </button>
+  </form>
+  <a href="/account" class="block text-center text-sm text-gray-500 hover:underline mt-3">
+    Annuleren
+  </a>
+</div>
+{% endblock %}

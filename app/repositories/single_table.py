@@ -317,6 +317,17 @@ def put_user_profile(profile: UserProfile) -> None:
     table.put_item(Item=profile.to_item())
 
 
+def delete_user_profile(sub: str) -> None:
+    """AVG Art. 17 (right to erasure): removes the name/address data a profile
+    holds. Deliberately does NOT touch that sub's orders -- an order is a
+    pseudonymous transaction record with its own, separate retention need
+    (Dutch bookkeeping law), not identifying data on its own once the profile
+    and the Cognito account it belongs to are both gone. See
+    docs/gdpr-nis2-compliance.md."""
+    table = get_table()
+    table.delete_item(Key={"PK": f"USER#{sub}", "SK": "PROFILE"})
+
+
 def create_return_request(return_request: ReturnRequest) -> bool:
     """ConditionExpression enforces "one return per order" at the key level --
     also makes a double form-submit idempotent rather than creating two
